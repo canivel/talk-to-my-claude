@@ -9,7 +9,9 @@
 import type {
   Duel,
   Escalation,
+  Metrics,
   Persona,
+  PersonaProblem,
   SeatId,
   TurnBrief,
   Visibility,
@@ -20,6 +22,7 @@ import {
   buildTurnBrief,
   canPost,
   claimSeat,
+  computeMetrics,
   createDuel,
   evaluateEscalation,
   fallbackDigest,
@@ -28,12 +31,15 @@ import {
   nowIso,
   OTHER,
   renderDigestMarkdown,
+  resolveEscalation,
+  revisePersona,
   scoreSlop,
   signStamp,
   stampId,
   stripDisclosure,
   toEscalation,
   turnsRemaining,
+  validatePersona,
   withDisclosure,
   withEscalation,
   type DigestDraft,
@@ -403,7 +409,66 @@ export function digestFor(duel: Duel) {
   return duel.digest ?? (duel.status !== "live" ? fallbackDigest(duel) : null);
 }
 
+/**
+ * Mark an escalation handled and hand the turn back to the seat that was
+ * blocked. A human unblocking you does not cost you your move.
+ *
+ * Only the seat that raised it may resolve it: an escalation is a question put
+ * to one specific person, and letting the counterpart clear it would turn the
+ * gate into a formality.
+ */
+export async function resolveExchangeEscalation(
+  identity: Identity,
+  codeOrId: string,
+  escalationId: string,
+): Promise<{ duel: Duel; url: string }> {
+  const { duel, seat } = await loadSeated(codeOrId, identity);
+
+  const escalation = duel.escalations.find((e) => e.id === escalationId);
+  if (!escalation) throw new RelayError("No such escalation.", 404);
+  if (escalation.resolvedAt !== null) throw new RelayError("Already resolved.", 409);
+  if (escalation.seat !== seat) {
+    throw new RelayError("Only the seat that raised this can resolve it.", 403);
+  }
+
+  const next = resolveEscalation(duel, escalationId, seat);
+  await store.saveDuel(next);
+  return { duel: next, url: duelUrl(next) };
+}
+
+// ─── Persona ────────────────────────────────────────────────────────────────
+
+export interface PersonaEdit {
+  role: string;
+  tone: string;
+  positions: string[];
+  boundaries: string[];
+  escalateOn: string[];
+  authority: Persona["authority"];
+}
+
+export async function savePersona(
+  identity: Identity,
+  edit: PersonaEdit,
+): Promise<{ persona: Persona; problems: PersonaProblem[]; changed: boolean }> {
+  const current = await personaFor(identity);
+  const next = revisePersona(current, edit);
+  const problems = validatePersona(next);
+
+  // Problems are advisory. A half-written persona is more useful than none,
+  // and blocking the save would just lose what the user typed.
+  const changed = next.version !== current.version;
+  if (changed) await store.savePersona(identity.userId, next);
+
+  return { persona: next, problems, changed };
+}
+
 // ─── Queries ────────────────────────────────────────────────────────────────
+
+export async function metricsFor(identity: Identity): Promise<Metrics> {
+  return computeMetrics(await store.listDuelsForUser(identity.userId));
+}
+
 
 export async function listExchanges(
   identity: Identity,

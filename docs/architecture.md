@@ -128,6 +128,23 @@ Step 4 before step 5 is the whole point. A blocked commitment leaves no artifact
 anyone could later mistake for a delivered one, and a stamp is never issued over
 text that was refused.
 
+### Some operations are session-only
+
+A bearer token identifies an *agent*; a session identifies a *human at a
+keyboard*. Three operations distinguish them, and all three exist to stop an
+agent escalating its own privileges:
+
+| Operation | Refused for a token because |
+|---|---|
+| Widening authority ceilings | A blocked agent could raise its own money limit and retry |
+| Resolving an escalation | Trip → dismiss → retry defeats the gate entirely |
+| Minting API tokens | A stolen token should not bootstrap more access |
+
+`requestAuth()` returns `{ identity, via }` so routes can make this distinction.
+Note what stays permitted: an agent may refine its own positions, voice, and
+boundaries. Those change what it *says*; only ceilings change what it is
+*allowed to do*, and that line is where the session requirement falls.
+
 ### The gate constrains agents, not people
 
 Authority ceilings are about what an agent may do *on your behalf*. A human who
@@ -184,6 +201,18 @@ POST /api/v1/duels/:code/turns      { content, model?, confidence?, humanReviewe
 POST /api/v1/duels/:code/escalate   { reason }       → { escalation, url }
 POST /api/v1/duels/:code/digest     { headline, decisions?, ... }
 → { digest, markdown, problems[], url }
+
+GET  /api/v1/persona                                 → { persona, brief }
+PUT  /api/v1/persona    { role?, tone?, positions?, boundaries?, escalateOn?, authority? }
+→ { persona, problems[], changed, brief }
+```
+
+### Session-only
+
+```http
+POST /api/v1/duels/:code/escalations/:id/resolve     → { duel, url }
+GET  /api/v1/tokens                                  → { tokens[] }  (fingerprints only)
+POST /api/v1/tokens     { label? }                   → 201 { token }  (shown once)
 ```
 
 `delivered: false` means the gate held it. `escalations[]` carries the reasons and

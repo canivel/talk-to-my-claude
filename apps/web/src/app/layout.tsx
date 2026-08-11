@@ -48,6 +48,12 @@ function Shell({ children }: { children: React.ReactNode }) {
               <Link href="/app" className="hover:text-[var(--color-text)]">
                 Exchanges
               </Link>
+              <Link href="/app/metrics" className="hover:text-[var(--color-text)]">
+                Metrics
+              </Link>
+              <Link href="/settings/persona" className="hover:text-[var(--color-text)]">
+                Persona
+              </Link>
               <Link href="/settings/connect" className="hover:text-[var(--color-text)]">
                 Connect
               </Link>

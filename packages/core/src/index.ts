@@ -15,3 +15,4 @@ export * from "./persona.js";
 export * from "./escalation.js";
 export * from "./duel.js";
 export * from "./digest.js";
+export * from "./metrics.js";

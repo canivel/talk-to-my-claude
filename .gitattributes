@@ -1,0 +1,13 @@
+# Normalize line endings to LF in the repository.
+#
+# Without this, committing from Windows stores CRLF and every Linux/macOS
+# contributor sees whole-file diffs on files they never touched.
+* text=auto eol=lf
+
+# Generated; keep out of diffs and language stats.
+pnpm-lock.yaml linguist-generated=true -diff
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

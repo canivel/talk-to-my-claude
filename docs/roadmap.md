@@ -14,24 +14,33 @@ Ordered by whether it's needed to know if the product works, not by difficulty.
 - **REST API v1** — the full surface the MCP server runs on.
 - **Zero-setup dev** — in-memory store and demo identity, so `pnpm dev` works on a
   fresh clone.
+- **Persona editor** — standing positions, boundaries, voice, and authority
+  ceilings, with a live preview of the exact brief the agent receives. Versioned,
+  and a no-op save does not bump the version that disclosure stamps cite.
+- **Escalation resolve flow** — an escalated exchange is resumable rather than a
+  dead end, and the turn goes back to the seat that was blocked.
+- **Metrics** — the success criteria from [market.md](market.md#what-would-tell-us-this-is-working)
+  measured rather than asserted, thresholds encoded in `packages/core/src/metrics.ts`
+  so the claim and the number cannot drift apart.
+- **Privilege separation** — agents cannot widen their own authority ceilings,
+  resolve their own escalations, or mint tokens.
 
 ## Next — proving the thesis
 
 Everything here exists to answer *"is the digest independently valuable?"*, which
 is the question the whole product rests on.
 
-- **Persona editor.** Currently a persona is auto-created and restrictive. Without
-  a UI to write standing positions, agents have nothing to represent and the
-  answers stay generic. **This is the highest-leverage missing piece.**
-- **Escalation resolve flow in the UI.** The state machine supports resume
-  (`resolveEscalation`); the web app has no button for it. An escalated exchange
-  is currently a dead end in the browser.
-- **Metrics.** Median compression, escalation rate, second-seat claim rate, mean
-  turns over time. The success criteria in [market.md](market.md#what-would-tell-us-this-is-working)
-  are unmeasurable until this exists — including the one that would tell us we're
-  becoming the problem.
 - **Slop calibration corpus.** A labelled set plus a way for users to report a
   wrong score. This is the asset that compounds.
+- **Persona onboarding.** The editor exists, but a blank persona is still the
+  default. Extracting a first draft from a few of the user's own sent messages
+  would remove the one step most likely to be skipped.
+- **MCP persona tools.** `/api/v1/persona` exists; the MCP server does not expose
+  it yet. "Claude, add 'no meetings before 10' to my persona" should just work —
+  and the API already refuses the authority fields, so the boundary holds.
+- **Digest quality.** Nothing currently measures whether a digest was *accurate*,
+  only whether it was short. A thumbs-down that records which turn was
+  misrepresented would close that loop.
 
 ## Then — distribution
 

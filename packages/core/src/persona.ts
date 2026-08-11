@@ -48,8 +48,40 @@ export function createPersona(input: {
   };
 }
 
-/** Any edit bumps the version, because disclosure stamps cite it. */
+/** Fields whose change earns a new version. `updatedAt` deliberately is not one. */
+const VERSIONED_FIELDS = [
+  "displayName",
+  "role",
+  "tone",
+  "positions",
+  "boundaries",
+  "escalateOn",
+  "authority",
+] as const;
+
+/**
+ * Whether a patch would actually change anything.
+ *
+ * The editor submits the whole form on every save, so without this a no-op save
+ * bumps the version — churning the number that disclosure stamps cite and
+ * making "which version of your positions said this" noisier for no reason.
+ */
+export function personaWouldChange(persona: Persona, patch: Partial<Persona>): boolean {
+  return VERSIONED_FIELDS.some((field) => {
+    if (patch[field] === undefined) return false;
+    const next =
+      field === "authority" ? { ...persona.authority, ...patch.authority } : patch[field];
+    return JSON.stringify(next) !== JSON.stringify(persona[field]);
+  });
+}
+
+/**
+ * Apply an edit. A real change bumps the version, because disclosure stamps
+ * cite it and that claim has to stay checkable after the persona moves on.
+ * A no-op returns the persona untouched.
+ */
 export function revisePersona(persona: Persona, patch: Partial<Persona>): Persona {
+  if (!personaWouldChange(persona, patch)) return persona;
   return {
     ...persona,
     ...patch,

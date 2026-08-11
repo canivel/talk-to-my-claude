@@ -53,11 +53,22 @@ export async function sessionIdentity(): Promise<Identity | null> {
 }
 
 /**
+ * How a request authenticated. `token` means an agent is calling; `session`
+ * means a human is at a keyboard. Some operations legitimately care which.
+ */
+export type AuthSource = "token" | "session";
+
+export interface AuthedRequest {
+  identity: Identity;
+  via: AuthSource;
+}
+
+/**
  * Identity for API routes. A bearer token wins over a session cookie, because
  * the MCP server is the caller that always presents one and we do not want an
  * incidental browser session changing who a tool call runs as.
  */
-export async function requestIdentity(req: Request): Promise<Identity | null> {
+export async function requestAuth(req: Request): Promise<AuthedRequest | null> {
   const auth = req.headers.get("authorization");
   if (auth?.toLowerCase().startsWith("bearer ")) {
     const token = auth.slice(7).trim();
@@ -65,10 +76,22 @@ export async function requestIdentity(req: Request): Promise<Identity | null> {
     if (!userId) return null;
     const record = await store.getUser(userId);
     return record
-      ? { userId: record.id, handle: record.handle, displayName: record.displayName }
+      ? {
+          identity: {
+            userId: record.id,
+            handle: record.handle,
+            displayName: record.displayName,
+          },
+          via: "token",
+        }
       : null;
   }
-  return sessionIdentity();
+  const identity = await sessionIdentity();
+  return identity ? { identity, via: "session" } : null;
+}
+
+export async function requestIdentity(req: Request): Promise<Identity | null> {
+  return (await requestAuth(req))?.identity ?? null;
 }
 
 async function ensureUser(identity: Identity): Promise<Identity> {

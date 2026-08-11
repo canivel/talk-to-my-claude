@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sessionIdentity } from "@/server/auth";
-import { escalateExchange, openExchange, postTurn, RelayError } from "@/server/relay";
+import {
+  escalateExchange,
+  openExchange,
+  postTurn,
+  RelayError,
+  resolveExchangeEscalation,
+  savePersona,
+} from "@/server/relay";
 import { store } from "@/server/store";
 
 async function requireIdentity() {
@@ -53,6 +60,41 @@ export async function escalateAction(form: FormData) {
   const identity = await requireIdentity();
   const code = str(form, "code");
   await escalateExchange(identity, code, str(form, "reason"));
+  revalidatePath(`/d/${code}`);
+}
+
+/** Textareas collect one item per line; blank lines are just formatting. */
+function lines(form: FormData, key: string): string[] {
+  return str(form, key)
+    .split("\n")
+    .map((l) => l.replace(/^\s*[-*]\s*/, "").trim())
+    .filter(Boolean);
+}
+
+export async function savePersonaAction(form: FormData) {
+  const identity = await requireIdentity();
+
+  await savePersona(identity, {
+    role: str(form, "role"),
+    tone: str(form, "tone"),
+    positions: lines(form, "positions"),
+    boundaries: lines(form, "boundaries"),
+    escalateOn: lines(form, "escalateOn"),
+    authority: {
+      canCommitTime: form.get("canCommitTime") === "on",
+      canCommitScope: form.get("canCommitScope") === "on",
+      canSpeakExternally: form.get("canSpeakExternally") === "on",
+      canCommitMoneyUsd: Math.max(0, Number(str(form, "canCommitMoneyUsd")) || 0),
+    },
+  });
+
+  revalidatePath("/settings/persona");
+}
+
+export async function resolveEscalationAction(form: FormData) {
+  const identity = await requireIdentity();
+  const code = str(form, "code");
+  await resolveExchangeEscalation(identity, code, str(form, "escalationId"));
   revalidatePath(`/d/${code}`);
 }
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { sessionIdentity } from "@/server/auth";
+import { personaFor, sessionIdentity } from "@/server/auth";
 import { listExchanges } from "@/server/relay";
 import { storageMode } from "@/server/store";
 
@@ -17,7 +17,10 @@ export default async function DashboardPage() {
     );
   }
 
-  const exchanges = await listExchanges(identity);
+  const [exchanges, persona] = await Promise.all([
+    listExchanges(identity),
+    personaFor(identity),
+  ]);
   const waiting = exchanges.filter((e) => e.awaitingYou);
 
   return (
@@ -36,6 +39,24 @@ export default async function DashboardPage() {
           Answer something
         </Link>
       </div>
+
+      {/* An untouched persona is the single biggest predictor of bad output, so
+          it gets called out ahead of anything else on this page. */}
+      {persona.version === 1 && persona.role === "" && (
+        <div className="panel mt-6 border-[var(--color-seat-a)] p-4">
+          <p className="label" style={{ color: "var(--color-seat-a)" }}>
+            Your persona is empty
+          </p>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
+            Your agent has no standing positions to represent, so it will hedge
+            rather than answer — which is the output this product exists to
+            complain about. Five minutes here changes every reply.
+          </p>
+          <Link href="/settings/persona" className="btn mt-3 !px-3 !py-1.5 !text-xs">
+            Write your positions
+          </Link>
+        </div>
+      )}
 
       {storageMode === "memory" && (
         <p className="panel mt-6 p-4 text-sm text-[var(--color-muted)]">

@@ -9,7 +9,7 @@ import {
   type SeatId,
   type Turn,
 } from "@ttmc/core";
-import { submitReplyAction } from "@/app/actions";
+import { resolveEscalationAction, submitReplyAction } from "@/app/actions";
 import { CopyButton } from "@/components/CopyButton";
 import { SlopMeter } from "@/components/SlopMeter";
 import { personaFor, sessionIdentity } from "@/server/auth";
@@ -176,7 +176,7 @@ export default async function DuelPage({
           <p className="label" style={{ color: "var(--color-danger)" }}>
             Stopped — this needs you
           </p>
-          <ul className="mt-3 space-y-2">
+          <ul className="mt-3 space-y-4">
             {openEscalations.map((e) => (
               <li key={e.id} className="text-sm">
                 <span className="font-mono text-xs text-[var(--color-faint)]">
@@ -188,12 +188,26 @@ export default async function DuelPage({
                     {e.evidence.join(" · ")}
                   </p>
                 )}
+                {/* Only the seat that raised it may clear it — an escalation is
+                    a question put to one person, and letting the counterpart
+                    dismiss it would make the gate a formality. */}
+                {mySeat === e.seat && (
+                  <form action={resolveEscalationAction} className="mt-2">
+                    <input type="hidden" name="code" value={duel.code} />
+                    <input type="hidden" name="escalationId" value={e.id} />
+                    <button type="submit" className="btn !px-3 !py-1.5 !text-xs">
+                      I&apos;ve handled this — resume
+                    </button>
+                  </form>
+                )}
               </li>
             ))}
           </ul>
           <p className="mt-4 text-sm text-[var(--color-muted)]">
             The turn that tripped this was never written to the transcript. Nothing was
             sent.
+            {openEscalations.some((e) => e.seat === mySeat) &&
+              " Resuming hands the turn back to you — decide it yourself, or widen your persona's authority and let your agent retry."}
           </p>
         </section>
       )}

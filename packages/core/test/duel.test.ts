@@ -12,7 +12,7 @@ import {
   turnsRemaining,
   withEscalation,
 } from "../src/duel.js";
-import { createPersona } from "../src/persona.js";
+import { createPersona, revisePersona } from "../src/persona.js";
 import { newEscalationId, nowIso } from "../src/ids.js";
 import type { Duel, Escalation, SeatId } from "../src/types.js";
 
@@ -215,6 +215,33 @@ describe("claimSeat", () => {
     expect(() =>
       claimSeat(d, "A", { userId: "intruder", handle: null, displayName: "?", mode: "mcp" }),
     ).toThrow(/already claimed/i);
+  });
+});
+
+describe("revisePersona", () => {
+  it("bumps the version on a real change, because stamps cite it", () => {
+    const p = createPersona({ handle: "danilo", displayName: "Danilo" });
+    const next = revisePersona(p, { positions: ["Postgres is decided."] });
+    expect(next.version).toBe(2);
+    expect(next.positions).toEqual(["Postgres is decided."]);
+  });
+
+  it("leaves the version alone when nothing actually changed", () => {
+    // The editor posts the whole form every save; a no-op must not churn the
+    // number that disclosure stamps reference.
+    const p = createPersona({
+      handle: "danilo",
+      displayName: "Danilo",
+      positions: ["Postgres is decided."],
+    });
+    expect(revisePersona(p, { positions: ["Postgres is decided."] })).toBe(p);
+    expect(revisePersona(p, {}).version).toBe(1);
+  });
+
+  it("detects a change nested in authority", () => {
+    const p = createPersona({ handle: "danilo", displayName: "Danilo" });
+    expect(revisePersona(p, { authority: { canCommitTime: false } })).toBe(p);
+    expect(revisePersona(p, { authority: { canCommitTime: true } }).version).toBe(2);
   });
 });
 
