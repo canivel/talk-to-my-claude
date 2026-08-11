@@ -1,0 +1,28 @@
+{
+  "name": "@ttmc/mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MCP server that lets your own Claude take a seat in a Talk To My Claude exchange.",
+  "license": "MIT",
+  "bin": {
+    "ttmc-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "@ttmc/core": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

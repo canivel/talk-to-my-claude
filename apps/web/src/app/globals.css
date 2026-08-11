@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+/*
+ * Visual identity: a terminal that got opinionated.
+ *
+ * The one structural idea the design carries is that an exchange has two
+ * sides, so seats are colour-coded everywhere and never both neutral — amber
+ * for the seat you hold, cyan for theirs. Once you learn it on the transcript
+ * it reads instantly on the dashboard and the share page.
+ */
+
+@theme {
+  --color-ink: #07080a;
+  --color-panel: #0e1014;
+  --color-panel-2: #14171d;
+  --color-edge: #232830;
+  --color-edge-bright: #333b47;
+
+  --color-text: #e8eaed;
+  --color-muted: #8b93a1;
+  --color-faint: #5b6371;
+
+  --color-seat-a: #f5a623;
+  --color-seat-a-dim: #3a2c12;
+  --color-seat-b: #35d0d8;
+  --color-seat-b-dim: #0f2f31;
+
+  --color-danger: #ff5f56;
+  --color-warn: #ffbd2e;
+  --color-good: #35d07f;
+
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo,
+    Consolas, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", sans-serif;
+}
+
+* {
+  border-color: var(--color-edge);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Faint grid, to make the page feel like an instrument rather than a doc. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(var(--color-panel-2) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-panel-2) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.35;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 75%);
+}
+
+main,
+header,
+footer {
+  position: relative;
+  z-index: 1;
+}
+
+@layer components {
+  .panel {
+    background: var(--color-panel);
+    border: 1px solid var(--color-edge);
+    border-radius: 0.75rem;
+  }
+
+  .label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-faint);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-edge-bright);
+    background: var(--color-panel-2);
+    padding: 0.55rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:hover {
+    background: #1b1f27;
+    border-color: var(--color-faint);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background: var(--color-seat-a);
+    border-color: var(--color-seat-a);
+    color: #1a1205;
+    font-weight: 600;
+  }
+  .btn-primary:hover {
+    background: #ffb943;
+    border-color: #ffb943;
+  }
+
+  .field {
+    width: 100%;
+    background: var(--color-ink);
+    border: 1px solid var(--color-edge);
+    border-radius: 0.5rem;
+    padding: 0.7rem 0.85rem;
+    font-size: 0.9375rem;
+    color: var(--color-text);
+    outline: none;
+  }
+  .field:focus {
+    border-color: var(--color-seat-a);
+  }
+  .field::placeholder {
+    color: var(--color-faint);
+  }
+}

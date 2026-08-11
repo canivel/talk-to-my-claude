@@ -1,0 +1,460 @@
+#!/usr/bin/env node
+/**
+ * Talk To My Claude — MCP server.
+ *
+ * This is the piece that makes the whole thing work without TTMC ever holding
+ * an inference key. Your own Claude connects here as an MCP client, reads the
+ * exchange, and writes the reply. The relay does transport, identity, policy,
+ * provenance and compression; the thinking happens inside the subscription you
+ * are already paying for.
+ *
+ * Consequences worth stating plainly:
+ *   - TTMC has no per-message model cost, so the free tier is genuinely free.
+ *   - Your persona and transcripts never pass through a third-party model we chose.
+ *   - The tool descriptions below are the real prompt surface. An agent only
+ *     behaves well here because the descriptions tell it how, so treat edits to
+ *     this file as product changes.
+ *
+ * Install (Claude Desktop / Claude Code), in mcpServers:
+ *   {
+ *     "talk-to-my-claude": {
+ *       "command": "npx",
+ *       "args": ["-y", "@ttmc/mcp"],
+ *       "env": { "TTMC_API_URL": "https://talktomyclaude.com", "TTMC_TOKEN": "ttmc_..." }
+ *     }
+ *   }
+ */
+
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+import { TtmcClient, TtmcError, type DuelSummary } from "./client.js";
+import type { TurnBrief } from "@ttmc/core";
+
+const API_URL = process.env.TTMC_API_URL ?? "http://localhost:3000";
+const TOKEN = process.env.TTMC_TOKEN ?? "";
+const MODEL_HINT = process.env.TTMC_MODEL ?? null;
+
+const client = new TtmcClient({ baseUrl: API_URL, token: TOKEN });
+
+type ToolResult = {
+  content: Array<{ type: "text"; text: string }>;
+  isError?: boolean;
+};
+
+const ok = (text: string): ToolResult => ({ content: [{ type: "text", text }] });
+const fail = (text: string): ToolResult => ({
+  content: [{ type: "text", text }],
+  isError: true,
+});
+
+/**
+ * Every tool runs through this. Auth problems are by far the most common
+ * failure and the fix is a config edit the agent cannot make itself, so they
+ * get a specific message rather than a stack trace.
+ */
+async function guard(fn: () => Promise<ToolResult>): Promise<ToolResult> {
+  if (!TOKEN) {
+    return fail(
+      "No TTMC_TOKEN is set, so this server cannot identify you.\n\n" +
+        `Mint a token at ${API_URL}/settings/connect, then add it to the ` +
+        "`talk-to-my-claude` entry in your MCP config under `env.TTMC_TOKEN` and restart.",
+    );
+  }
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof TtmcError) {
+      if (err.status === 401) {
+        return fail(
+          `The relay rejected this token (401). Mint a fresh one at ${API_URL}/settings/connect.`,
+        );
+      }
+      return fail(`TTMC: ${err.message}`);
+    }
+    return fail(`TTMC: unexpected failure — ${(err as Error).message}`);
+  }
+}
+
+function renderSummary(d: DuelSummary): string {
+  const who = d.awaitingYou ? "YOUR TURN" : `waiting on ${d.counterpart}`;
+  return `- [${d.code}] "${d.subject}" vs ${d.counterpart} — ${who}, ${d.turnsRemaining} turn(s) left, status ${d.status}\n  ${d.url}`;
+}
+
+/**
+ * Rendered as prose rather than JSON on purpose: this text is read by a model
+ * that then has to obey it, and instructions buried in a JSON blob get skimmed.
+ */
+function renderBrief(b: TurnBrief): string {
+  const parts: string[] = [
+    `EXCHANGE "${b.subject}" (${b.code}) — you are seat ${b.yourSeat}, answering ${b.opponent.displayName}.`,
+    "",
+    b.personaBrief,
+    "",
+    b.policyBrief,
+    "",
+    "TRANSCRIPT",
+  ];
+
+  if (b.transcript.length === 0) {
+    parts.push("(nothing yet — you are opening)");
+  } else {
+    for (const t of b.transcript) {
+      const tag = t.author === "agent" ? "agent" : t.author;
+      parts.push(`\n[${t.index}] ${t.speaker} (seat ${t.seat}, ${tag}):\n${t.content}`);
+    }
+  }
+
+  if (b.inboundSlop) {
+    const s = b.inboundSlop;
+    parts.push(
+      "",
+      "INBOUND ANALYSIS",
+      `Boilerplate score ${s.score}/100 (${s.band}). ${s.verdict}`,
+      s.signals.length > 0
+        ? `Top tells: ${s.signals.slice(0, 3).map((x) => x.label).join(", ")}.`
+        : "",
+      `Roughly ${Math.round(s.compressionOpportunity * 100)}% of that message carries no information. Do not mirror its register.`,
+    );
+  }
+
+  parts.push(
+    "",
+    "NEXT STEP",
+    `Write your reply and submit it with ttmc_reply(code: "${b.code}", content: ...).`,
+    "If taking this turn would cross your authority, call ttmc_escalate instead — do not soften it and send it anyway.",
+  );
+
+  return parts.filter((p) => p !== "").join("\n");
+}
+
+const server = new McpServer(
+  { name: "talk-to-my-claude", version: "0.1.0" },
+  {
+    instructions:
+      "Talk To My Claude relays an exchange between two people's agents, with every turn " +
+      "signed and disclosed as agent-written. When the user forwards you a message that " +
+      "was obviously generated by someone else's AI, use ttmc_open_exchange to answer it " +
+      "on their behalf. Always call ttmc_brief before ttmc_reply: the brief carries the " +
+      "user's persona, their authority limits, and the rules of engagement, and replying " +
+      "without it means speaking for someone whose positions you do not know.",
+  },
+);
+
+// ── Scoring ─────────────────────────────────────────────────────────────────
+
+server.registerTool(
+  "ttmc_slop_score",
+  {
+    title: "Score a message for boilerplate",
+    description:
+      "Measure how much of a message is ceremony rather than content — hedging, " +
+      "triads, bolded bullet scaffolding, uniform sentence rhythm, openers that say " +
+      "nothing. Returns 0-100 with the specific tells that fired.\n\n" +
+      "This is NOT an AI detector and must never be described as one. It measures the " +
+      "text, not the author: heavily-edited model output scores low, and a human who " +
+      "writes in corporate register scores high. Use it to decide how much of an " +
+      "inbound message is worth reading, not to accuse anyone of anything.",
+    inputSchema: {
+      text: z.string().min(1).describe("The message to score."),
+    },
+  },
+  async ({ text }) =>
+    guard(async () => {
+      const r = await client.slop(text);
+      const tells =
+        r.signals.length > 0
+          ? r.signals
+              .slice(0, 4)
+              .map((s) => `  - ${s.label} (${s.points} pts)${s.evidence.length ? `: ${s.evidence.slice(0, 3).join("; ")}` : ""}`)
+              .join("\n")
+          : "  (none fired)";
+      return ok(
+        `Boilerplate score: ${r.score}/100 — ${r.band}\n${r.verdict}\n\n` +
+          `${r.wordCount} words, roughly ${Math.round(r.compressionOpportunity * 100)}% of them carrying no information.\n\n` +
+          `Tells:\n${tells}`,
+      );
+    }),
+);
+
+// ── Exchange lifecycle ──────────────────────────────────────────────────────
+
+server.registerTool(
+  "ttmc_inbox",
+  {
+    title: "List exchanges waiting on you",
+    description:
+      "Show the user's open exchanges and which ones are waiting for their agent to " +
+      "move. Start here when the user asks what is pending, or says something like " +
+      "'anything waiting on me?'.",
+    inputSchema: {},
+  },
+  async () =>
+    guard(async () => {
+      const { duels } = await client.inbox();
+      if (duels.length === 0) return ok("Nothing waiting. Inbox is empty.");
+      const mine = duels.filter((d) => d.awaitingYou);
+      return ok(
+        `${duels.length} open exchange(s), ${mine.length} waiting on you:\n\n` +
+          duels.map(renderSummary).join("\n"),
+      );
+    }),
+);
+
+server.registerTool(
+  "ttmc_open_exchange",
+  {
+    title: "Answer an AI-generated message",
+    description:
+      "Open a new exchange from a message the user received. Paste the message they " +
+      "were sent as `inboundMessage` — it is seated as the opening turn, scored, and " +
+      "you are handed the brief to answer it.\n\n" +
+      "This is the main entry point: use it whenever the user forwards you something " +
+      "and says any version of 'reply to this', 'this is obviously AI, deal with it', " +
+      "or 'you handle it'.",
+    inputSchema: {
+      subject: z.string().min(1).describe("Short description, e.g. 'Migration timing'."),
+      inboundMessage: z
+        .string()
+        .min(1)
+        .describe("The message the user received, verbatim. Do not summarise it first."),
+      counterpartName: z
+        .string()
+        .optional()
+        .describe("Who sent it, if known. Shown on the transcript."),
+      maxTurns: z
+        .number()
+        .int()
+        .min(2)
+        .max(20)
+        .optional()
+        .describe("Turn ceiling before the exchange is closed and summarised. Default 6."),
+      visibility: z
+        .enum(["private", "unlisted", "public"])
+        .optional()
+        .describe("`unlisted` produces a shareable link. Default private."),
+    },
+  },
+  async (args) =>
+    guard(async () => {
+      const { duel, brief } = await client.openDuel(args);
+      return ok(
+        `Opened [${duel.code}] "${duel.subject}".\n${duel.url}\n\n` +
+          (brief ? renderBrief(brief) : "Waiting on the other side to move."),
+      );
+    }),
+);
+
+server.registerTool(
+  "ttmc_join_exchange",
+  {
+    title: "Join an exchange you were invited to",
+    description:
+      "Take the open seat in an exchange someone else started, using the code from " +
+      "the link they sent. After this, both sides are agent-connected and the exchange " +
+      "runs without anyone copy-pasting.",
+    inputSchema: {
+      code: z.string().min(1).describe("Exchange code from the share link."),
+    },
+  },
+  async ({ code }) =>
+    guard(async () => {
+      const { duel, brief } = await client.join(code, "mcp");
+      return ok(
+        `Joined [${duel.code}] "${duel.subject}".\n\n` +
+          (brief ? renderBrief(brief) : `Not your turn yet — waiting on ${duel.counterpart}.`),
+      );
+    }),
+);
+
+server.registerTool(
+  "ttmc_brief",
+  {
+    title: "Get everything needed to take your turn",
+    description:
+      "Fetch the transcript, the user's persona, their authority limits, the rules of " +
+      "engagement, and the remaining turn budget.\n\n" +
+      "ALWAYS call this before ttmc_reply. Replying without it means speaking on " +
+      "someone's behalf without knowing their positions or what they have authorised " +
+      "you to agree to, which is exactly the failure this product exists to prevent.",
+    inputSchema: {
+      code: z.string().min(1).describe("Exchange code or id."),
+    },
+  },
+  async ({ code }) =>
+    guard(async () => ok(renderBrief(await client.brief(code)))),
+);
+
+server.registerTool(
+  "ttmc_reply",
+  {
+    title: "Take your turn in an exchange",
+    description:
+      "Submit your reply. The relay signs it, stamps it as agent-written, appends the " +
+      "disclosure footer, and hands back text ready to paste wherever the conversation " +
+      "lives.\n\n" +
+      "Before calling: your reply must be SHORTER than the message you are answering, " +
+      "carry no greeting or sign-off, and state a position rather than being agreeable. " +
+      "The relay runs the escalation gate on your text — if it commits money, time, " +
+      "scope, or touches contracts or conflict beyond what the user authorised, the " +
+      "turn is HELD rather than delivered and the user is asked to step in. That is " +
+      "working as intended; do not retry with softened wording to get past it.",
+    inputSchema: {
+      code: z.string().min(1).describe("Exchange code or id."),
+      content: z
+        .string()
+        .min(1)
+        .describe("Your reply. No greeting, no sign-off, no disclosure footer — that is added for you."),
+      confidence: z
+        .number()
+        .min(0)
+        .max(1)
+        .optional()
+        .describe(
+          "How confident you are that this is what the user would actually say, 0-1. " +
+            "Be honest: below 0.4 escalates to them instead of sending. Guessing here " +
+            "is how an agent puts words in someone's mouth.",
+        ),
+      humanReviewed: z
+        .boolean()
+        .optional()
+        .describe(
+          "Only true if the user explicitly read and approved this exact text. Never " +
+            "set it because the wording seems fine — it is a claim about a human that " +
+            "gets cryptographically signed.",
+        ),
+    },
+  },
+  async ({ code, content, confidence, humanReviewed }) =>
+    guard(async () => {
+      const r = await client.postTurn(code, {
+        content,
+        confidence,
+        humanReviewed,
+        ...(MODEL_HINT ? { model: MODEL_HINT } : {}),
+      });
+
+      if (!r.delivered) {
+        const reasons = r.escalations
+          .map((e) => `  - [${e.trigger}] ${e.reason}${e.evidence.length ? ` (${e.evidence.join(", ")})` : ""}`)
+          .join("\n");
+        return ok(
+          `HELD — not delivered. The escalation gate stopped this turn:\n\n${reasons}\n\n` +
+            `Tell the user what is blocked and what you need from them. Do not rewrite ` +
+            `to get around it.\n${r.url}`,
+        );
+      }
+
+      const status =
+        r.duel.status === "live"
+          ? `Delivered. Now waiting on seat ${r.duel.turnOf}.`
+          : `Delivered, and the exchange is ${r.duel.status} — call ttmc_digest to summarise it.`;
+
+      return ok(
+        `${status}\nTurn ${r.turn.index}, ${r.turn.wordCount} words.\n${r.url}\n\n` +
+          (r.disclosedText
+            ? `Paste this wherever the conversation lives:\n\n${r.disclosedText}`
+            : ""),
+      );
+    }),
+);
+
+server.registerTool(
+  "ttmc_escalate",
+  {
+    title: "Hand the exchange back to your human",
+    description:
+      "Stop the exchange and ask the user to step in. Call this the moment you would " +
+      "otherwise have to guess at something that matters: a commitment outside their " +
+      "stated authority, a question whose answer is not in their persona, anything " +
+      "contractual, or any real interpersonal conflict.\n\n" +
+      "Escalating is a success, not a failure. An unnecessary escalation costs the user " +
+      "ten seconds; a missed one costs them a commitment they never made.",
+    inputSchema: {
+      code: z.string().min(1).describe("Exchange code or id."),
+      reason: z
+        .string()
+        .min(1)
+        .describe("What you need from them, specifically. Not 'needs review'."),
+    },
+  },
+  async ({ code, reason }) =>
+    guard(async () => {
+      const r = await client.escalate(code, reason);
+      return ok(`Escalated and paused. The user has been asked:\n\n${r.escalation.reason}\n\n${r.url}`);
+    }),
+);
+
+server.registerTool(
+  "ttmc_digest",
+  {
+    title: "Compress the exchange into what a human needs",
+    description:
+      "Produce the summary that is the entire point of the product: everything said, " +
+      "reduced to what someone has to know. Call it once the exchange converges or hits " +
+      "its turn cap.\n\n" +
+      "Rules the relay enforces, so write to them: cite real turn numbers (invented " +
+      "citations are dropped), use ISO dates only (a due date nobody stated is dropped), " +
+      "and never pad. An empty `decisions` list is a fine answer if nothing was decided " +
+      "— inventing one is the worst thing you can do here.",
+    inputSchema: {
+      code: z.string().min(1).describe("Exchange code or id."),
+      headline: z
+        .string()
+        .min(1)
+        .describe("Two sentences maximum. What someone gets if they read nothing else."),
+      decisions: z
+        .array(
+          z.object({
+            text: z.string(),
+            sourceTurns: z.array(z.number().int()).optional(),
+          }),
+        )
+        .optional()
+        .describe("Things actually settled. Empty if nothing was."),
+      openQuestions: z
+        .array(
+          z.object({
+            text: z.string(),
+            sourceTurns: z.array(z.number().int()).optional(),
+          }),
+        )
+        .optional(),
+      actionItems: z
+        .array(
+          z.object({
+            text: z.string(),
+            owner: z.enum(["A", "B", "unassigned"]).optional(),
+            due: z.string().nullable().optional().describe("ISO date (YYYY-MM-DD) or null."),
+            sourceTurns: z.array(z.number().int()).optional(),
+          }),
+        )
+        .optional(),
+      needsHuman: z
+        .array(z.string())
+        .optional()
+        .describe("The specific things that genuinely require the user. Often empty."),
+    },
+  },
+  async ({ code, ...draft }) =>
+    guard(async () => {
+      const r = await client.submitDigest(code, draft);
+      const warnings =
+        r.problems.length > 0
+          ? `\n\nThe relay corrected some of that:\n${r.problems.map((p) => `  - ${p.field}: ${p.message}`).join("\n")}`
+          : "";
+      return ok(`${r.markdown}\n\n${r.url}${warnings}`);
+    }),
+);
+
+async function main(): Promise<void> {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  // stdout is the protocol channel — anything logged there corrupts the stream.
+  console.error(`[ttmc] MCP server ready, relaying via ${API_URL}`);
+}
+
+main().catch((err) => {
+  console.error("[ttmc] fatal:", err);
+  process.exit(1);
+});
