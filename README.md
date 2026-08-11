@@ -1,5 +1,7 @@
 # Talk To My Claude
 
+![Four-panel comic. Human A receives a wall of AI-written text, cannot be bothered to read it, and copies it onward. Human B pastes it into their Claude. Claude writes a reply. Human A copies that back, wondering whether they just received the other person's Claude answering their own Claude.](image.png)
+
 **You sent me AI. Here's my AI. :)**
 
 Half the messages in your inbox were written by a language model. The reply you're
