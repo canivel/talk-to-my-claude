@@ -2,14 +2,18 @@
 /**
  * Record `demo.mjs` as a self-contained animated SVG.
  *
- * Why an SVG rather than a GIF: it embeds in a GitHub README, stays text (so
- * it diffs and compresses), weighs a few tens of KB instead of megabytes, and
- * needs no recorder installed — which matters because the usual tools
- * (asciinema, termtosvg) are Unix-only and this repo is developed on Windows.
+ * This is a scene player, not a terminal replay, and that distinction was
+ * learned the hard way. The first version faithfully reproduced the scrolling
+ * log — 47 lines accumulating over 26 seconds — which was accurate and
+ * completely unreadable. A README viewer is watching, not reading: the eye
+ * needs one idea at a time, held long enough to finish, in a frame that does
+ * not move. So each step gets the screen to itself and then hands it over.
  *
- * Animation is pure CSS keyframes. GitHub renders SVG through <img>, which
- * runs CSS but blocks scripts, so this is the one animation technique that
- * actually survives.
+ * Why SVG rather than GIF: it embeds in a GitHub README, stays text (so it
+ * diffs and compresses), weighs ~15 KB instead of megabytes, and needs no
+ * recorder installed — asciinema and termtosvg are Unix-only and this repo is
+ * developed on Windows. GitHub renders SVG through <img>, which runs CSS but
+ * blocks scripts, so pure CSS keyframes are the one technique that survives.
  *
  *   pnpm demo:record        # requires `pnpm dev` in another terminal
  */
@@ -22,16 +26,22 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(HERE, "../docs/demo-run.svg");
 
-// Terminal geometry. COLS is enforced by wrapping, so a long line can never
-// blow out the viewBox and shrink the whole recording in the README.
-const COLS = 104;
-const FONT = 14;
+const COLS = 74;
+const FONT = 15;
 const CHAR_W = FONT * 0.6;
-const LINE_H = FONT * 1.45;
-const PAD = 18;
-const CHROME = 34;
+const LINE_H = 25;
+const PAD = 26;
+const CHROME = 36;
+const HEADER = 46;
+const TITLE_H = 34;
+/** Fixed body height so scenes never resize the frame as they swap. */
+const BODY_LINES = 4;
 
-/** One-dark-ish palette, tuned to match the app's own colours. */
+/** Seconds a scene stays up: enough to read its longest line, plus a beat. */
+const BASE_HOLD = 1.7;
+const PER_LINE = 0.78;
+const FINAL_HOLD = 2.6;
+
 const PALETTE = {
   fg: "#e8eaed",
   bg: "#0e1014",
@@ -42,13 +52,11 @@ const PALETTE = {
   94: "#9dc0ff", 95: "#dda6e8", 96: "#7fe6eb", 97: "#ffffff",
 };
 
-/** Split an ANSI-coloured string into styled runs. */
 function parseAnsi(line) {
   const runs = [];
   let color = null;
   let bold = false;
   let buf = "";
-
   const flush = () => {
     if (buf) runs.push({ text: buf, color, bold });
     buf = "";
@@ -61,8 +69,8 @@ function parseAnsi(line) {
     buf += line.slice(last, m.index);
     flush();
     last = re.lastIndex;
-    for (const codeStr of m[1].split(";")) {
-      const code = Number(codeStr || "0");
+    for (const raw of m[1].split(";")) {
+      const code = Number(raw || "0");
       if (code === 0) {
         color = null;
         bold = false;
@@ -76,85 +84,104 @@ function parseAnsi(line) {
   return runs;
 }
 
-/** Visible width, ignoring escape codes. */
-const visibleLength = (s) => s.replace(/\x1b\[[0-9;]*m/g, "").length;
-
-/**
- * Wrap to COLS while preserving the active colour across the break, so a
- * wrapped line does not lose its styling halfway through.
- */
-function wrap(line) {
-  if (visibleLength(line) <= COLS) return [line];
-
-  const out = [];
-  let current = "";
-  let width = 0;
-  let active = "";
-
-  const tokens = line.split(/(\x1b\[[0-9;]*m|\s+)/).filter((t) => t !== "");
-  for (const tok of tokens) {
-    if (/^\x1b\[/.test(tok)) {
-      current += tok;
-      active = /\[0m$/.test(tok) ? "" : tok;
-      continue;
-    }
-    const w = tok.length;
-    if (width + w > COLS && width > 0) {
-      out.push(current);
-      current = active + "   ";
-      width = 3;
-      if (/^\s+$/.test(tok)) continue;
-    }
-    current += tok;
-    width += w;
-  }
-  if (current.trim()) out.push(current);
-  return out;
-}
-
 const escapeXml = (s) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-function buildSvg(frames) {
-  const rows = frames.length;
-  const width = Math.round(COLS * CHAR_W + PAD * 2);
-  const height = Math.round(rows * LINE_H + PAD * 2 + CHROME);
+function tspans(text) {
+  return parseAnsi(text)
+    .map((run) => {
+      const attrs = [];
+      if (run.color) attrs.push(`fill="${run.color}"`);
+      if (run.bold) attrs.push(`font-weight="700"`);
+      return `<tspan xml:space="preserve" ${attrs.join(" ")}>${escapeXml(run.text)}</tspan>`;
+    })
+    .join("");
+}
 
-  // Total runtime, plus a hold so the finished screen is readable before loop.
-  const HOLD = 4;
-  const total = (frames.at(-1)?.t ?? 1) + HOLD;
+/**
+ * Keyframes with a visible window. Every offset must be DISTINCT and
+ * increasing: when two keyframes share an offset the later one wins, which
+ * silently deletes the other and turns an intended step into a long linear
+ * fade. That bug shipped once already.
+ */
+function windowKeyframes(name, startPct, endPct, total) {
+  const EPS = 0.01;
+  const a = Math.max(0, startPct);
+  const b = Math.min(100, endPct);
+  const stops = [];
+
+  if (a <= EPS) stops.push(`0%{opacity:1}`);
+  else stops.push(`0%,${(a - EPS).toFixed(3)}%{opacity:0}`, `${a.toFixed(3)}%{opacity:1}`);
+
+  if (b >= 100 - EPS) stops.push(`100%{opacity:1}`);
+  else stops.push(`${b.toFixed(3)}%{opacity:1}`, `${(b + EPS).toFixed(3)}%,100%{opacity:0}`);
+
+  return (
+    `@keyframes ${name}{${stops.join("")}}` +
+    `.${name}{opacity:0;animation:${name} ${total}s linear infinite}`
+  );
+}
+
+function buildSvg(scenes, meta) {
+  const width = Math.round(COLS * CHAR_W + PAD * 2);
+  const bodyTop = CHROME + HEADER + TITLE_H;
+  const height = Math.round(bodyTop + BODY_LINES * LINE_H + PAD + 14);
+
+  // Lay the scenes out on a timeline first; percentages come after.
+  let clock = 0;
+  const timed = scenes.map((sc, i) => {
+    const hold = BASE_HOLD + sc.lines.length * PER_LINE + (i === scenes.length - 1 ? FINAL_HOLD : 0);
+    const start = clock;
+    clock += hold;
+    return { ...sc, start, end: clock };
+  });
+  const total = clock;
 
   const css = [];
   const body = [];
 
-  frames.forEach((frame, i) => {
-    const pct = (frame.t / total) * 100;
-    // The two offsets must be DISTINCT. Writing `0%,P%{opacity:0}P%,...{opacity:1}`
-    // looks like a step but is not: when two keyframes declare the same offset,
-    // the later one wins, so the P% opacity:0 entry is discarded and the list
-    // collapses to 0%→0, P%→1 — which `linear` then interpolates into a long
-    // fade. Every line ends up ghosting in simultaneously from t=0. A hair of
-    // separation makes the transition genuinely instantaneous.
-    const off = pct.toFixed(3);
-    const on = Math.min(100, pct + 0.01).toFixed(3);
-    css.push(
-      `@keyframes r${i}{0%,${off}%{opacity:0}${on}%,100%{opacity:1}}` +
-        `.r${i}{opacity:0;animation:r${i} ${total}s linear infinite}`,
+  timed.forEach((sc, i) => {
+    const startPct = (sc.start / total) * 100;
+    const endPct = (sc.end / total) * 100;
+    css.push(windowKeyframes(`s${i}`, startPct, endPct, total));
+
+    const parts = [];
+
+    // Step counter and title.
+    parts.push(
+      `<text x="${PAD}" y="${CHROME + HEADER + 22}" font-size="12" fill="#5b6371" xml:space="preserve">STEP ${sc.n} / ${scenes.length}</text>`,
+    );
+    parts.push(
+      `<text x="${PAD + 84}" y="${CHROME + HEADER + 22}" font-size="15" font-weight="700" fill="${PALETTE[33]}">${escapeXml(sc.title)}</text>`,
     );
 
-    const y = (PAD + CHROME + (i + 1) * LINE_H).toFixed(1);
-    const spans = parseAnsi(frame.text)
-      .map((run) => {
-        const attrs = [];
-        if (run.color) attrs.push(`fill="${run.color}"`);
-        if (run.bold) attrs.push(`font-weight="700"`);
-        // xml:space keeps the leading indentation that carries the layout.
-        return `<tspan xml:space="preserve" ${attrs.join(" ")}>${escapeXml(run.text)}</tspan>`;
-      })
-      .join("");
+    // Body lines, each staggered in slightly so the scene has some life. The
+    // stagger multiplies with the scene's own show/hide via group opacity.
+    sc.lines.forEach((line, k) => {
+      const at = sc.start + 0.28 + k * 0.3;
+      const atPct = (at / total) * 100;
+      const name = `l${i}_${k}`;
+      css.push(windowKeyframes(name, atPct, endPct, total));
+      const y = bodyTop + (k + 1) * LINE_H;
+      parts.push(`<text class="${name}" x="${PAD}" y="${y}">${tspans(line)}</text>`);
+    });
 
-    body.push(`<text class="r${i}" x="${PAD}" y="${y}">${spans}</text>`);
+    body.push(`<g class="s${i}">${parts.join("")}</g>`);
   });
+
+  // Progress segments: one per scene, lit while that scene is on screen.
+  const segW = (width - PAD * 2) / scenes.length;
+  const segY = height - 16;
+  const segs = timed
+    .map((sc, i) => {
+      const x = PAD + i * segW;
+      const w = segW - 4;
+      return (
+        `<rect x="${x.toFixed(1)}" y="${segY}" width="${w.toFixed(1)}" height="3" rx="1.5" fill="#232830"/>` +
+        `<rect class="s${i}" x="${x.toFixed(1)}" y="${segY}" width="${w.toFixed(1)}" height="3" rx="1.5" fill="${PALETTE[33]}"/>`
+      );
+    })
+    .join("");
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="ui-monospace,'SF Mono','Cascadia Mono','Roboto Mono',Menlo,Consolas,monospace" font-size="${FONT}">
 <style>
@@ -163,52 +190,75 @@ text{fill:${PALETTE.fg};white-space:pre}
 </style>
 <rect width="${width}" height="${height}" rx="10" fill="${PALETTE.frame}"/>
 <rect x="1" y="${CHROME}" width="${width - 2}" height="${height - CHROME - 1}" fill="${PALETTE.bg}"/>
-<circle cx="20" cy="17" r="5.5" fill="#ff5f56"/>
-<circle cx="39" cy="17" r="5.5" fill="#ffbd2e"/>
-<circle cx="58" cy="17" r="5.5" fill="#27c93f"/>
-<text x="${width / 2}" y="22" text-anchor="middle" font-size="12" fill="#5b6371">pnpm demo</text>
+<circle cx="20" cy="18" r="5.5" fill="#ff5f56"/>
+<circle cx="39" cy="18" r="5.5" fill="#ffbd2e"/>
+<circle cx="58" cy="18" r="5.5" fill="#27c93f"/>
+<text x="${width / 2}" y="23" text-anchor="middle" font-size="12" fill="#5b6371">pnpm demo</text>
+<text x="${PAD}" y="${CHROME + 28}" font-size="15" font-weight="700" fill="${PALETTE[36]}">talk-to-my-claude<tspan font-weight="400" fill="#5b6371">  ${escapeXml(meta.subtitle)}</tspan></text>
 ${body.join("\n")}
+${segs}
 </svg>
 `;
 }
 
 async function main() {
-  const frames = [];
-  const started = Date.now();
+  const scenes = [];
   let pending = "";
+  let done = null;
 
   const child = spawn(process.execPath, [resolve(HERE, "demo.mjs")], {
-    env: { ...process.env, FORCE_COLOR: "1" },
+    env: { ...process.env, TTMC_DEMO_JSON: "1", FORCE_COLOR: "1" },
     stdio: ["ignore", "pipe", "inherit"],
   });
 
   child.stdout.setEncoding("utf8");
   child.stdout.on("data", (chunk) => {
-    process.stdout.write(chunk);
     pending += chunk;
     const parts = pending.split("\n");
     pending = parts.pop() ?? "";
-    // Timestamp at line completion — close enough to real pacing, and it
-    // keeps the SVG line-based rather than character-based (much smaller).
-    const t = (Date.now() - started) / 1000;
     for (const raw of parts) {
-      for (const line of wrap(raw.replace(/\r/g, ""))) {
-        frames.push({ t, text: line });
+      if (!raw.trim()) continue;
+      let ev;
+      try {
+        ev = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+      if (ev.type === "scene") {
+        scenes.push({ n: ev.n, title: ev.title, lines: [] });
+        process.stdout.write(`  ${String(ev.n).padStart(2, "0")} ${ev.title}\n`);
+      } else if (ev.type === "line" && scenes.length > 0) {
+        scenes.at(-1).lines.push(ev.text);
+      } else if (ev.type === "done") {
+        done = ev;
+      } else if (ev.type === "fail") {
+        process.stderr.write(`FAILED ${ev.text}\n`);
       }
     }
   });
 
   const code = await new Promise((r) => child.on("close", r));
-  if (code !== 0) {
+  if (code !== 0 || !done) {
     console.error(`\ndemo exited ${code} — not writing an SVG of a failed run.`);
-    process.exit(code ?? 1);
+    process.exit(code || 1);
   }
 
-  mkdirSync(dirname(OUT), { recursive: true });
-  writeFileSync(OUT, buildSvg(frames), "utf8");
+  const over = scenes.filter((s) => s.lines.length > BODY_LINES);
+  if (over.length > 0) {
+    // Silently clipping would make the recording quietly lie about the run.
+    console.error(
+      `\nscene(s) ${over.map((s) => s.n).join(", ")} exceed BODY_LINES=${BODY_LINES} and would be clipped.`,
+    );
+    process.exit(1);
+  }
 
-  const kb = (Buffer.byteLength(buildSvg(frames)) / 1024).toFixed(1);
-  console.log(`\nwrote ${OUT}  (${frames.length} lines, ${kb} KB)`);
+  const svg = buildSvg(scenes, { subtitle: "· end-to-end, no inference key" });
+  mkdirSync(dirname(OUT), { recursive: true });
+  writeFileSync(OUT, svg, "utf8");
+
+  console.log(
+    `\nwrote ${OUT}  (${scenes.length} scenes, ${(Buffer.byteLength(svg) / 1024).toFixed(1)} KB)`,
+  );
 }
 
 main();

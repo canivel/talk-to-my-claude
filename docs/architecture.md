@@ -254,9 +254,18 @@ pasted into some other system — which is the normal case.
 
 ### The end-to-end demo
 
-`pnpm demo` (`scripts/demo.mjs`) drives eleven steps against a running relay and
+`pnpm demo` (`scripts/demo.mjs`) drives seven steps against a running relay and
 asserts every one. It is a smoke test wearing a demo's clothes, and
 `pnpm demo:record` renders the same run to `docs/demo-run.svg` for the README.
+
+The recording is a **scene player**, not a terminal replay. The first version
+reproduced the scrolling log faithfully — 47 lines accumulating over 26 seconds
+— which was accurate and unreadable. A README viewer is watching, not reading,
+so each step now gets the frame to itself, held long enough to finish, with a
+step counter and progress segments. `demo.mjs` emits structured events under
+`TTMC_DEMO_JSON=1` so the recorder can group them; the recorder refuses to write
+an SVG if any scene would overflow its four body lines, because silently
+clipping would make the recording lie about the run.
 
 Recording it as an animated SVG rather than a GIF is deliberate: it stays text
 (so it diffs and compresses), weighs ~13 KB, and needs no recorder installed —

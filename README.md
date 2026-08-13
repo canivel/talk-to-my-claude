@@ -29,9 +29,9 @@ talk — is a real piece of infrastructure.
 
 ## See it run
 
-Eleven steps against a real relay — no inference key anywhere in the run.
+Seven steps against a real relay — no inference key anywhere in the run.
 
-![Terminal recording of the end-to-end demo: minting a token, writing a persona, scoring an inbound AI message at 54/100, the agent replying and the relay signing it, a signature verifying and then failing after one word is edited, the escalation gate holding a $90,000 commitment, an agent refused when it tries to raise its own ceiling, a human clearing it, and the exchange compressing 139 words into 23.](docs/demo-run.svg)
+![Animated recording of the demo, one step at a time: setting up a persona with a $25,000 ceiling; scoring an inbound message at 54/100 boilerplate; the agent replying in 27 words and the relay signing it; that signature verifying, then failing after a single sentence is edited; pasting the counterpart's reply in on their behalf; the escalation gate holding a $90,000 commitment and refusing the agent when it tries to raise its own ceiling; and the whole exchange compressing to 22 words.](docs/demo-run.svg)
 
 ```bash
 pnpm dev        # one terminal
