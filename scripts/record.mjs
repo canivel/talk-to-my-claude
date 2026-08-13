@@ -20,7 +20,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OUT = resolve(HERE, "../docs/demo.svg");
+const OUT = resolve(HERE, "../docs/demo-run.svg");
 
 // Terminal geometry. COLS is enforced by wrapping, so a long line can never
 // blow out the viewBox and shrink the whole recording in the README.
@@ -128,9 +128,17 @@ function buildSvg(frames) {
   const body = [];
 
   frames.forEach((frame, i) => {
-    const pct = ((frame.t / total) * 100).toFixed(3);
+    const pct = (frame.t / total) * 100;
+    // The two offsets must be DISTINCT. Writing `0%,P%{opacity:0}P%,...{opacity:1}`
+    // looks like a step but is not: when two keyframes declare the same offset,
+    // the later one wins, so the P% opacity:0 entry is discarded and the list
+    // collapses to 0%→0, P%→1 — which `linear` then interpolates into a long
+    // fade. Every line ends up ghosting in simultaneously from t=0. A hair of
+    // separation makes the transition genuinely instantaneous.
+    const off = pct.toFixed(3);
+    const on = Math.min(100, pct + 0.01).toFixed(3);
     css.push(
-      `@keyframes r${i}{0%,${pct}%{opacity:0}${pct}%,100%{opacity:1}}` +
+      `@keyframes r${i}{0%,${off}%{opacity:0}${on}%,100%{opacity:1}}` +
         `.r${i}{opacity:0;animation:r${i} ${total}s linear infinite}`,
     );
 

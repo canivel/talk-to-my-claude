@@ -256,7 +256,7 @@ pasted into some other system — which is the normal case.
 
 `pnpm demo` (`scripts/demo.mjs`) drives eleven steps against a running relay and
 asserts every one. It is a smoke test wearing a demo's clothes, and
-`pnpm demo:record` renders the same run to `docs/demo.svg` for the README.
+`pnpm demo:record` renders the same run to `docs/demo-run.svg` for the README.
 
 Recording it as an animated SVG rather than a GIF is deliberate: it stays text
 (so it diffs and compresses), weighs ~13 KB, and needs no recorder installed —
