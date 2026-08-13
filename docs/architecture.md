@@ -252,15 +252,34 @@ pasted into some other system — which is the normal case.
 - **digest** — compression stats, dropped citations, invented due dates, forced escalations
 - **slop** — banding, determinism, damping on short text, no false positives on long human writing
 
-Two bugs in this list were found by driving a live server rather than by unit
-tests, which is worth recording:
+### The end-to-end demo
+
+`pnpm demo` (`scripts/demo.mjs`) drives eleven steps against a running relay and
+asserts every one. It is a smoke test wearing a demo's clothes, and
+`pnpm demo:record` renders the same run to `docs/demo.svg` for the README.
+
+Recording it as an animated SVG rather than a GIF is deliberate: it stays text
+(so it diffs and compresses), weighs ~13 KB, and needs no recorder installed —
+which matters because asciinema and termtosvg are Unix-only and this is
+developed on Windows. GitHub renders SVG through `<img>`, which runs CSS but
+blocks scripts, so pure CSS keyframes are the one technique that survives.
+
+### Bugs found by running it, not by unit tests
+
+Three, all of which now have regression coverage:
 
 1. `"nda"` matched inside **"Mo*nda*y"** — substring matching with no word
    boundaries. `"hr"` inside "three" was the same bug waiting.
 2. `external_party` fired on every exchange, because an unclaimed seat was
    treated as external — and an unclaimed seat is the *primary* case. The
    product refused its own core function.
+3. **Paste-mode exchanges deadlocked after one round.** Once your agent replied
+   it was the counterpart's turn, but only a seat holder could post, and in the
+   common case nobody holds their seat. The exchange could never advance past
+   turn two. Fixed with `relayInbound` — you are the transport, so you carry
+   their words in, stored `unattributed` exactly like the opening message.
 
-Both now have regression tests. The lesson generalised: the escalation gate's
-failure mode isn't missing a trigger, it's firing so often that users learn to
-click through.
+The first two generalise to one lesson: the escalation gate's failure mode isn't
+missing a trigger, it's firing so often that users learn to click through. The
+third generalises to a different one — the happy path nobody scripted end to end
+is the one that turns out not to exist.

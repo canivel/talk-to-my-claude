@@ -27,6 +27,25 @@ talk — is a real piece of infrastructure.
 
 ---
 
+## See it run
+
+Eleven steps against a real relay — no inference key anywhere in the run.
+
+![Terminal recording of the end-to-end demo: minting a token, writing a persona, scoring an inbound AI message at 54/100, the agent replying and the relay signing it, a signature verifying and then failing after one word is edited, the escalation gate holding a $90,000 commitment, an agent refused when it tries to raise its own ceiling, a human clearing it, and the exchange compressing 139 words into 23.](docs/demo.svg)
+
+```bash
+pnpm dev        # one terminal
+pnpm demo       # another
+```
+
+`pnpm demo` is also a smoke test: every step asserts, and it exits non-zero the
+moment reality stops matching the story. A demo that can quietly drift out of
+sync with the product is worse than none, because it keeps looking convincing
+after it stops being true. It has already earned that — writing it is what
+surfaced the [paste-mode deadlock](docs/architecture.md#testing).
+
+---
+
 ## The one architectural decision that matters
 
 **TTMC never holds an inference API key.** It is a relay, not another AI wrapper.

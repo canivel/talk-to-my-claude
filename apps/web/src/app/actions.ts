@@ -8,6 +8,7 @@ import {
   openExchange,
   postTurn,
   RelayError,
+  relayInbound,
   resolveExchangeEscalation,
   savePersona,
 } from "@/server/relay";
@@ -53,6 +54,13 @@ export async function submitReplyAction(form: FormData) {
     model: str(form, "model") || undefined,
   });
 
+  revalidatePath(`/d/${code}`);
+}
+
+export async function relayInboundAction(form: FormData) {
+  const identity = await requireIdentity();
+  const code = str(form, "code");
+  await relayInbound(identity, code, str(form, "content"));
   revalidatePath(`/d/${code}`);
 }
 

@@ -345,6 +345,51 @@ export async function postTurn(
 }
 
 /**
+ * Relay a message the counterpart sent you, into their seat.
+ *
+ * This is the other half of `paste` mode, and without it the primary use case
+ * deadlocks: after your agent replies it is their turn, but if they have never
+ * heard of TTMC nobody holds their seat and nobody can post it. You are the
+ * transport — that is the entire premise — so you get to carry their words in.
+ *
+ * Stored exactly like the seeded opening message: `unattributed`, unsigned,
+ * slop-scored. You pasting text is not evidence of who wrote it, and the
+ * escalation gate does not run — it governs what *your* agent may commit to,
+ * and this is not your agent speaking.
+ */
+export async function relayInbound(
+  identity: Identity,
+  codeOrId: string,
+  content: string,
+): Promise<{ duel: Duel; summary: DuelSummary; url: string }> {
+  const { duel, seat } = await loadSeated(codeOrId, identity);
+  const their = OTHER[seat];
+
+  if (duel.seats[their].userId !== null) {
+    throw new RelayError(
+      "They hold their own seat, so they post their own turns. Nothing to relay.",
+      409,
+    );
+  }
+
+  const check = canPost(duel, their);
+  if (!check.ok) throw new RelayError(check.reason!, 409);
+
+  const clean = stripDisclosure(content).trim();
+  if (!clean) throw new RelayError("A turn cannot be empty.", 400);
+
+  const { duel: next } = appendTurn(duel, {
+    seat: their,
+    author: "unattributed",
+    content: clean,
+    slop: scoreSlop(clean),
+  });
+
+  await store.saveDuel(next);
+  return { duel: next, summary: summarize(next, identity.userId), url: duelUrl(next) };
+}
+
+/**
  * Whether the counterpart is known to be outside the seat holder's organization.
  *
  * Returns false until org membership actually exists, which lands with the

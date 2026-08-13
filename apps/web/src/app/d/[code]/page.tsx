@@ -3,13 +3,18 @@ import { notFound } from "next/navigation";
 import {
   buildTurnBrief,
   renderDigestMarkdown,
+  OTHER,
   stampId,
   turnsRemaining,
   type Duel,
   type SeatId,
   type Turn,
 } from "@ttmc/core";
-import { resolveEscalationAction, submitReplyAction } from "@/app/actions";
+import {
+  relayInboundAction,
+  resolveEscalationAction,
+  submitReplyAction,
+} from "@/app/actions";
 import { CopyButton } from "@/components/CopyButton";
 import { SlopMeter } from "@/components/SlopMeter";
 import { personaFor, sessionIdentity } from "@/server/auth";
@@ -122,6 +127,11 @@ export default async function DuelPage({
 
   const digest = digestFor(duel);
   const myTurn = mySeat !== null && duel.turnOf === mySeat && duel.status === "live";
+  const theirTurn =
+    mySeat !== null &&
+    duel.status === "live" &&
+    duel.turnOf === OTHER[mySeat] &&
+    duel.seats[OTHER[mySeat]].userId === null;
   const brief =
     myTurn && identity ? buildTurnBrief(duel, mySeat, await personaFor(identity)) : null;
 
@@ -289,6 +299,38 @@ export default async function DuelPage({
           <div className="mt-3">
             <SlopMeter report={lastInbound.slop} />
           </div>
+        </section>
+      )}
+
+      {/* The other half of paste mode: it is their move, but nobody holds
+          their seat, so the only way the exchange advances is you carrying
+          their reply in. Without this the primary use case deadlocks. */}
+      {theirTurn && (
+        <section className="panel p-5">
+          <p className="label">Waiting on {duel.seats[OTHER[mySeat!]].displayName}</p>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
+            They aren&apos;t connected to TTMC, so you are the transport. When they
+            reply, paste it here.
+          </p>
+          <form action={relayInboundAction} className="mt-4 space-y-3">
+            <input type="hidden" name="code" value={duel.code} />
+            <textarea
+              name="content"
+              rows={6}
+              required
+              placeholder="Paste what they sent back…"
+              className="field resize-y font-mono text-[0.8125rem] leading-relaxed"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-[var(--color-faint)]">
+                Stored unsigned and scored, exactly like their opening message. We
+                know you pasted it and nothing more.
+              </p>
+              <button type="submit" className="btn">
+                Add their reply
+              </button>
+            </div>
+          </form>
         </section>
       )}
 

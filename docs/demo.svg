@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="910" height="1024" viewBox="0 0 910 1024" font-family="ui-monospace,'SF Mono','Cascadia Mono','Roboto Mono',Menlo,Consolas,monospace" font-size="14">
+<style>
+@keyframes r0{0%,0.408%{opacity:0}0.408%,100%{opacity:1}}.r0{opacity:0;animation:r0 16.668s linear infinite}
+@keyframes r1{0%,0.408%{opacity:0}0.408%,100%{opacity:1}}.r1{opacity:0;animation:r1 16.668s linear infinite}
+@keyframes r2{0%,3.504%{opacity:0}3.504%,100%{opacity:1}}.r2{opacity:0;animation:r2 16.668s linear infinite}
+@keyframes r3{0%,3.504%{opacity:0}3.504%,100%{opacity:1}}.r3{opacity:0;animation:r3 16.668s linear infinite}
+@keyframes r4{0%,5.304%{opacity:0}5.304%,100%{opacity:1}}.r4{opacity:0;animation:r4 16.668s linear infinite}
+@keyframes r5{0%,9.089%{opacity:0}9.089%,100%{opacity:1}}.r5{opacity:0;animation:r5 16.668s linear infinite}
+@keyframes r6{0%,9.089%{opacity:0}9.089%,100%{opacity:1}}.r6{opacity:0;animation:r6 16.668s linear infinite}
+@keyframes r7{0%,10.787%{opacity:0}10.787%,100%{opacity:1}}.r7{opacity:0;animation:r7 16.668s linear infinite}
+@keyframes r8{0%,14.591%{opacity:0}14.591%,100%{opacity:1}}.r8{opacity:0;animation:r8 16.668s linear infinite}
+@keyframes r9{0%,14.591%{opacity:0}14.591%,100%{opacity:1}}.r9{opacity:0;animation:r9 16.668s linear infinite}
+@keyframes r10{0%,16.079%{opacity:0}16.079%,100%{opacity:1}}.r10{opacity:0;animation:r10 16.668s linear infinite}
+@keyframes r11{0%,17.501%{opacity:0}17.501%,100%{opacity:1}}.r11{opacity:0;animation:r11 16.668s linear infinite}
+@keyframes r12{0%,18.713%{opacity:0}18.713%,100%{opacity:1}}.r12{opacity:0;animation:r12 16.668s linear infinite}
+@keyframes r13{0%,22.528%{opacity:0}22.528%,100%{opacity:1}}.r13{opacity:0;animation:r13 16.668s linear infinite}
+@keyframes r14{0%,22.528%{opacity:0}22.528%,100%{opacity:1}}.r14{opacity:0;animation:r14 16.668s linear infinite}
+@keyframes r15{0%,24.280%{opacity:0}24.280%,100%{opacity:1}}.r15{opacity:0;animation:r15 16.668s linear infinite}
+@keyframes r16{0%,28.006%{opacity:0}28.006%,100%{opacity:1}}.r16{opacity:0;animation:r16 16.668s linear infinite}
+@keyframes r17{0%,28.006%{opacity:0}28.006%,100%{opacity:1}}.r17{opacity:0;animation:r17 16.668s linear infinite}
+@keyframes r18{0%,29.824%{opacity:0}29.824%,100%{opacity:1}}.r18{opacity:0;animation:r18 16.668s linear infinite}
+@keyframes r19{0%,30.982%{opacity:0}30.982%,100%{opacity:1}}.r19{opacity:0;animation:r19 16.668s linear infinite}
+@keyframes r20{0%,30.982%{opacity:0}30.982%,100%{opacity:1}}.r20{opacity:0;animation:r20 16.668s linear infinite}
+@keyframes r21{0%,34.797%{opacity:0}34.797%,100%{opacity:1}}.r21{opacity:0;animation:r21 16.668s linear infinite}
+@keyframes r22{0%,34.797%{opacity:0}34.797%,100%{opacity:1}}.r22{opacity:0;animation:r22 16.668s linear infinite}
+@keyframes r23{0%,36.495%{opacity:0}36.495%,100%{opacity:1}}.r23{opacity:0;animation:r23 16.668s linear infinite}
+@keyframes r24{0%,37.857%{opacity:0}37.857%,100%{opacity:1}}.r24{opacity:0;animation:r24 16.668s linear infinite}
+@keyframes r25{0%,41.661%{opacity:0}41.661%,100%{opacity:1}}.r25{opacity:0;animation:r25 16.668s linear infinite}
+@keyframes r26{0%,41.661%{opacity:0}41.661%,100%{opacity:1}}.r26{opacity:0;animation:r26 16.668s linear infinite}
+@keyframes r27{0%,43.497%{opacity:0}43.497%,100%{opacity:1}}.r27{opacity:0;animation:r27 16.668s linear infinite}
+@keyframes r28{0%,47.252%{opacity:0}47.252%,100%{opacity:1}}.r28{opacity:0;animation:r28 16.668s linear infinite}
+@keyframes r29{0%,47.252%{opacity:0}47.252%,100%{opacity:1}}.r29{opacity:0;animation:r29 16.668s linear infinite}
+@keyframes r30{0%,49.016%{opacity:0}49.016%,100%{opacity:1}}.r30{opacity:0;animation:r30 16.668s linear infinite}
+@keyframes r31{0%,50.228%{opacity:0}50.228%,100%{opacity:1}}.r31{opacity:0;animation:r31 16.668s linear infinite}
+@keyframes r32{0%,51.440%{opacity:0}51.440%,100%{opacity:1}}.r32{opacity:0;animation:r32 16.668s linear infinite}
+@keyframes r33{0%,55.166%{opacity:0}55.166%,100%{opacity:1}}.r33{opacity:0;animation:r33 16.668s linear infinite}
+@keyframes r34{0%,55.166%{opacity:0}55.166%,100%{opacity:1}}.r34{opacity:0;animation:r34 16.668s linear infinite}
+@keyframes r35{0%,56.803%{opacity:0}56.803%,100%{opacity:1}}.r35{opacity:0;animation:r35 16.668s linear infinite}
+@keyframes r36{0%,58.201%{opacity:0}58.201%,100%{opacity:1}}.r36{opacity:0;animation:r36 16.668s linear infinite}
+@keyframes r37{0%,61.861%{opacity:0}61.861%,100%{opacity:1}}.r37{opacity:0;animation:r37 16.668s linear infinite}
+@keyframes r38{0%,61.861%{opacity:0}61.861%,100%{opacity:1}}.r38{opacity:0;animation:r38 16.668s linear infinite}
+@keyframes r39{0%,63.769%{opacity:0}63.769%,100%{opacity:1}}.r39{opacity:0;animation:r39 16.668s linear infinite}
+@keyframes r40{0%,67.597%{opacity:0}67.597%,100%{opacity:1}}.r40{opacity:0;animation:r40 16.668s linear infinite}
+@keyframes r41{0%,67.597%{opacity:0}67.597%,100%{opacity:1}}.r41{opacity:0;animation:r41 16.668s linear infinite}
+@keyframes r42{0%,69.324%{opacity:0}69.324%,100%{opacity:1}}.r42{opacity:0;animation:r42 16.668s linear infinite}
+@keyframes r43{0%,70.500%{opacity:0}70.500%,100%{opacity:1}}.r43{opacity:0;animation:r43 16.668s linear infinite}
+@keyframes r44{0%,71.706%{opacity:0}71.706%,100%{opacity:1}}.r44{opacity:0;animation:r44 16.668s linear infinite}
+@keyframes r45{0%,76.002%{opacity:0}76.002%,100%{opacity:1}}.r45{opacity:0;animation:r45 16.668s linear infinite}
+@keyframes r46{0%,76.002%{opacity:0}76.002%,100%{opacity:1}}.r46{opacity:0;animation:r46 16.668s linear infinite}
+text{fill:#e8eaed;white-space:pre}
+</style>
+<rect width="910" height="1024" rx="10" fill="#07080a"/>
+<rect x="1" y="34" width="908" height="989" fill="#0e1014"/>
+<circle cx="20" cy="17" r="5.5" fill="#ff5f56"/>
+<circle cx="39" cy="17" r="5.5" fill="#ffbd2e"/>
+<circle cx="58" cy="17" r="5.5" fill="#27c93f"/>
+<text x="455" y="22" text-anchor="middle" font-size="12" fill="#5b6371">pnpm demo</text>
+<text class="r0" x="18" y="72.3"><tspan xml:space="preserve" fill="#35d0d8" font-weight="700">talk-to-my-claude</tspan><tspan xml:space="preserve" fill="#8b93a1"> · end-to-end demo · http://localhost:3000</tspan></text>
+<text class="r1" x="18" y="92.6"><tspan xml:space="preserve" fill="#8b93a1">no inference key is used anywhere in this run</tspan></text>
+<text class="r2" x="18" y="112.9"></text>
+<text class="r3" x="18" y="133.2"><tspan xml:space="preserve" fill="#f5a623" font-weight="700">01 Mint an agent token</tspan></text>
+<text class="r4" x="18" y="153.5"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#35d07f">ok</tspan><tspan xml:space="preserve" >  </tspan><tspan xml:space="preserve" fill="#8b93a1">ttmc_yp58ajp6zyzxe…</tspan></text>
+<text class="r5" x="18" y="173.8"></text>
+<text class="r6" x="18" y="194.1"><tspan xml:space="preserve" fill="#f5a623" font-weight="700">02 Write the persona my agent speaks from</tspan></text>
+<text class="r7" x="18" y="214.4"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#35d07f">ok</tspan><tspan xml:space="preserve" >  v2 · 2 positions · ceiling </tspan><tspan xml:space="preserve" fill="#ffffff">$25,000</tspan></text>
+<text class="r8" x="18" y="234.7"></text>
+<text class="r9" x="18" y="255.0"><tspan xml:space="preserve" fill="#f5a623" font-weight="700">03 Someone sends me this</tspan></text>
+<text class="r10" x="18" y="275.3"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#8b93a1">"Hi there! I hope this email finds you well. Circling back on t…"</tspan></text>
+<text class="r11" x="18" y="295.6"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#ff5f56">54/100</tspan><tspan xml:space="preserve" > likely-ai </tspan><tspan xml:space="preserve" fill="#8b93a1">·</tspan><tspan xml:space="preserve" > 54% of it carries no information</tspan></text>
+<text class="r12" x="18" y="315.9"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#8b93a1">tells: house-style vocabulary, ceremonial opener, ceremonial closer</tspan></text>
+<text class="r13" x="18" y="336.2"></text>
+<text class="r14" x="18" y="356.5"><tspan xml:space="preserve" fill="#f5a623" font-weight="700">04 Hand it to my Claude</tspan></text>
+<text class="r15" x="18" y="376.8"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#35d07f">ok</tspan><tspan xml:space="preserve" >  exchange </tspan><tspan xml:space="preserve" fill="#35d0d8">2wntsk23sr</tspan><tspan xml:space="preserve" > </tspan><tspan xml:space="preserve" fill="#8b93a1">· their turn stored UNSIGNED — we don't know who wrote it</tspan></text>
+<text class="r16" x="18" y="397.1"></text>
+<text class="r17" x="18" y="417.4"><tspan xml:space="preserve" fill="#f5a623" font-weight="700">05 My agent answers, and the relay signs it</tspan></text>
+<text class="r18" x="18" y="437.7"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#35d07f">delivered</tspan><tspan xml:space="preserve" >  27 words </tspan><tspan xml:space="preserve" fill="#8b93a1">(they sent 72)</tspan></text>
+<text class="r19" x="18" y="458.0"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#35d0d8">🤖 Demo User's Claude wrote this · not reviewed by a human · verify </tspan></text>
+<text class="r20" x="18" y="478.3"><tspan xml:space="preserve" fill="#35d0d8">   http://localhost:3000/v/kGpNUfX2LbMuf2uO</tspan></text>
+<text class="r21" x="18" y="498.6"></text>
+<text class="r22" x="18" y="518.9"><tspan xml:space="preserve" fill="#f5a623" font-weight="700">06 Anyone can check that signature — no account needed</tspan></text>
+<text class="r23" x="18" y="539.2"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#35d07f">valid</tspan><tspan xml:space="preserve" >    written by agent </tspan><tspan xml:space="preserve" fill="#8b93a1">· claude-opus-5 · persona demo@2</tspan></text>
+<text class="r24" x="18" y="559.5"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#ff5f56">invalid</tspan><tspan xml:space="preserve" >  </tspan><tspan xml:space="preserve" fill="#8b93a1">after editing one sentence → content_mismatch</tspan></text>
+<text class="r25" x="18" y="579.8"></text>
+<text class="r26" x="18" y="600.1"><tspan xml:space="preserve" fill="#f5a623" font-weight="700">07 They reply. I'm the transport — they've never heard of us</tspan></text>
+<text class="r27" x="18" y="620.4"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#35d07f">ok</tspan><tspan xml:space="preserve" >  pasted into their seat </tspan><tspan xml:space="preserve" fill="#8b93a1">· unsigned, scored, my turn again</tspan></text>
+<text class="r28" x="18" y="640.7"></text>
+<text class="r29" x="18" y="661.0"><tspan xml:space="preserve" fill="#f5a623" font-weight="700">08 Now my agent tries to promise something it may not</tspan></text>
+<text class="r30" x="18" y="681.3"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#ff5f56">HELD</tspan><tspan xml:space="preserve" >     </tspan><tspan xml:space="preserve" fill="#8b93a1">never written to the transcript, nothing sent</tspan></text>
+<text class="r31" x="18" y="701.6"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#8b93a1">  ↳ money_over_authority</tspan></text>
+<text class="r32" x="18" y="721.9"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#8b93a1">  ↳ legal_or_contractual</tspan></text>
+<text class="r33" x="18" y="742.2"></text>
+<text class="r34" x="18" y="762.5"><tspan xml:space="preserve" fill="#f5a623" font-weight="700">09 So it tries to raise its own ceiling instead</tspan></text>
+<text class="r35" x="18" y="782.8"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#ff5f56">403</tspan><tspan xml:space="preserve" >      </tspan><tspan xml:space="preserve" fill="#8b93a1">an agent doesn't get to widen the limits it's checked against</tspan></text>
+<text class="r36" x="18" y="803.1"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#ff5f56">403</tspan><tspan xml:space="preserve" >      </tspan><tspan xml:space="preserve" fill="#8b93a1">nor clear the escalation it just tripped</tspan></text>
+<text class="r37" x="18" y="823.4"></text>
+<text class="r38" x="18" y="843.7"><tspan xml:space="preserve" fill="#f5a623" font-weight="700">10 I look at it myself and hand the turn back</tspan></text>
+<text class="r39" x="18" y="864.0"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#35d07f">resumed</tspan><tspan xml:space="preserve" >  2 cleared → status live </tspan><tspan xml:space="preserve" fill="#8b93a1">· my turn again</tspan></text>
+<text class="r40" x="18" y="884.3"></text>
+<text class="r41" x="18" y="904.6"><tspan xml:space="preserve" fill="#f5a623" font-weight="700">11 The only part a human actually reads</tspan></text>
+<text class="r42" x="18" y="924.9"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#ffffff">Migration moves to Monday. Friday is the board demo.</tspan></text>
+<text class="r43" x="18" y="945.2"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#f5a623" font-weight="700">6×</tspan><tspan xml:space="preserve" > compression </tspan><tspan xml:space="preserve" fill="#8b93a1">· 139 words in → 23 out</tspan></text>
+<text class="r44" x="18" y="965.5"><tspan xml:space="preserve" >   </tspan><tspan xml:space="preserve" fill="#8b93a1">relay dropped the due date the agent invented ("next Friday")</tspan></text>
+<text class="r45" x="18" y="985.8"></text>
+<text class="r46" x="18" y="1006.1"><tspan xml:space="preserve" fill="#35d07f" font-weight="700">All 11 steps passed.</tspan><tspan xml:space="preserve" fill="#8b93a1"> http://localhost:3000/d/2wntsk23sr</tspan></text>
+</svg>

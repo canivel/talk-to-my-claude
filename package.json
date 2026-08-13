@@ -16,7 +16,9 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm --filter @ttmc/web lint",
     "db:generate": "pnpm --filter @ttmc/web db:generate",
-    "db:push": "pnpm --filter @ttmc/web db:push"
+    "db:push": "pnpm --filter @ttmc/web db:push",
+    "demo": "node scripts/demo.mjs",
+    "demo:record": "node scripts/record.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.3",
