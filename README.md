@@ -47,6 +47,48 @@ surfaced the
 
 ---
 
+## Detecting their AI, and answering it automatically
+
+The Slack case: someone sends you an AI-written message, TTMC notices, and your
+Claude answers — in the thread, disclosed.
+
+**There is no fingerprint in Claude's output to look for.** Anthropic does not
+watermark text, and neither does anyone else worth relying on: SynthID-Text
+marks Gemini, C2PA covers images, and commercial "AI detectors" are style
+classifiers with false-positive rates that land hardest on non-native English
+writers.
+
+So TTMC does not hunt for a secret in the words. It reads back the signature
+**it** put there:
+
+| Tier | Signal | Certainty | May trigger an automatic reply? |
+|---|---|---|---|
+| 1 | TTMC-1 signature, verified | **Exact** | **Yes** — the default bar |
+| 2 | Vendor watermark | Exact | If one ever ships. Registry is empty |
+| 3 | Boilerplate score | Probabilistic | **No**, unless you lower the bar yourself |
+
+And detection is only half the decision. *Did a machine write this* and *should
+a machine answer it* are different questions, so the inbound message runs the
+escalation gate too. Contracts, conflict, credentials, money over your ceiling,
+and anything you fenced off in your persona are never auto-answered however
+confidently a machine is detected.
+
+```bash
+SLACK_SIGNING_SECRET=demo-slack-signing-secret TTMC_AUTOROUTE=1 TTMC_AUTOROUTE_CHANNELS=C_ENG pnpm dev
+
+pnpm demo:slack
+```
+
+Five signed Slack events: a forged request rejected at `401`, a human ignored,
+obvious slop flagged but **not** answered, a signed agent message auto-answered,
+and a signed agent message about a fenced subject held back. **One of five gets
+answered automatically** — that ratio is the design working, not failing.
+
+Full detail, including real Slack setup and the known gaps:
+[docs/detection.md](docs/detection.md).
+
+---
+
 ## The one architectural decision that matters
 
 **TTMC never holds an inference API key.** It is a relay, not another AI wrapper.
@@ -316,6 +358,7 @@ message that scores wrong, that's a bug and a test case.
 
 - [Market analysis](docs/market.md) — who this is for, what it competes with, how it makes money
 - [Architecture](docs/architecture.md) — how the pieces fit, and why the exchange is one JSONB column
+- [Detection](docs/detection.md) — how a machine-written message is spotted, and when it is deliberately not answered
 - [TTMC-1 protocol](docs/protocol.md) — the disclosure spec, in enough detail to reimplement
 - [Roadmap](docs/roadmap.md)
 

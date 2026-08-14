@@ -150,6 +150,20 @@ describe("persona boundaries", () => {
     );
   });
 
+  // Regression: a `length > 2` token filter dropped "Q3", so a fence naming a
+  // short code could never match anything.
+  it("fires on a boundary built around a short code", () => {
+    const fenced = createPersona({
+      handle: "danilo",
+      displayName: "Danilo",
+      positions: ["Postgres is decided."],
+      escalateOn: ["Anything about the Q3 reorg"],
+    });
+    expect(
+      triggers("The Q3 reorg lands next month, so I need your roadmap.", fenced),
+    ).toContain("persona_boundary");
+  });
+
   it("does not fire on unrelated text", () => {
     expect(triggers("The staging database is on Postgres 14.")).not.toContain(
       "persona_boundary",

@@ -9,6 +9,7 @@
 import type {
   Duel,
   Escalation,
+  ExchangeOrigin,
   Metrics,
   Persona,
   PersonaProblem,
@@ -126,6 +127,8 @@ export interface OpenInput {
   counterpartName?: string;
   maxTurns?: number;
   visibility?: Visibility;
+  /** Where this came in from, so the reply can go back to the same place. */
+  origin?: ExchangeOrigin;
 }
 
 export async function openExchange(
@@ -147,6 +150,7 @@ export async function openExchange(
     counterpartName: input.counterpartName,
     maxTurns: input.maxTurns,
     visibility: input.visibility,
+    origin: input.origin,
   });
 
   const inbound = input.inboundMessage?.trim();
@@ -330,18 +334,39 @@ export async function postTurn(
     stamp,
   });
 
+  const disclosedText = withDisclosure(content, stamp, {
+    displayName: identity.displayName,
+    publicUrl: PUBLIC_URL,
+  });
+
+  // Deliver it back where the conversation actually lives. Failing to post is
+  // logged rather than thrown: the turn is signed and recorded either way, and
+  // losing a written turn because Slack rate-limited us would be worse than a
+  // message the user has to copy across themselves.
+  await deliverToOrigin(next, disclosedText);
+
   return {
     duel: next,
     summary: summarize(next, identity.userId),
     delivered: true,
     escalations: [],
     turn: { index: turn.index, wordCount: turn.wordCount },
-    disclosedText: withDisclosure(content, stamp, {
-      displayName: identity.displayName,
-      publicUrl: PUBLIC_URL,
-    }),
+    disclosedText,
     url: duelUrl(next),
   };
+}
+
+async function deliverToOrigin(duel: Duel, text: string): Promise<void> {
+  if (duel.origin?.adapter !== "slack") return;
+  const { channel, threadTs } = duel.origin.ref;
+  if (!channel) return;
+  try {
+    const { postToSlack } = await import("@/server/slack");
+    const r = await postToSlack({ channel, threadTs, text });
+    if (r.error) console.error("[ttmc] slack delivery failed:", r.error);
+  } catch (err) {
+    console.error("[ttmc] slack delivery threw:", (err as Error).message);
+  }
 }
 
 /**

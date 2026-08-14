@@ -16,3 +16,4 @@ export * from "./escalation.js";
 export * from "./duel.js";
 export * from "./digest.js";
 export * from "./metrics.js";
+export * from "./detect.js";

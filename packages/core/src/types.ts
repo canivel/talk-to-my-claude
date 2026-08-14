@@ -277,6 +277,17 @@ export interface DigestStats {
   meanSlop: number | null;
 }
 
+/**
+ * Where an exchange came in from, and how to answer back into it. `ref` is
+ * opaque per adapter — Slack puts channel and thread timestamp here, email will
+ * put a message id. Kept in the domain rather than in an adapter-specific side
+ * table because "answer this where it was asked" is a property of the exchange.
+ */
+export interface ExchangeOrigin {
+  adapter: "web" | "slack" | "email" | "mcp";
+  ref: Record<string, string>;
+}
+
 export interface Duel {
   id: string;
   /** Short URL-safe code for the public /d/<code> page. */
@@ -293,6 +304,7 @@ export interface Duel {
   escalations: Escalation[];
   digest: Digest | null;
   visibility: Visibility;
+  origin: ExchangeOrigin | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

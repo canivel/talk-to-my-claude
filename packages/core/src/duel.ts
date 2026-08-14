@@ -15,6 +15,7 @@ import type {
   Duel,
   Persona,
   ProvenanceStamp,
+  ExchangeOrigin,
   Seat,
   SeatId,
   SeatMode,
@@ -68,6 +69,7 @@ export interface CreateDuelInput {
   counterpartName?: string;
   maxTurns?: number;
   visibility?: Visibility;
+  origin?: ExchangeOrigin;
 }
 
 export function createDuel(input: CreateDuelInput): Duel {
@@ -95,6 +97,7 @@ export function createDuel(input: CreateDuelInput): Duel {
     escalations: [],
     digest: null,
     visibility: input.visibility ?? "private",
+    origin: input.origin ?? null,
     createdBy: input.createdBy,
     createdAt: now,
     updatedAt: now,

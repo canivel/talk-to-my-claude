@@ -260,6 +260,30 @@ export function withDisclosure(
 }
 
 /**
+ * Pull a stamp reference out of a message that arrived through some other
+ * system — Slack, email, a paste. The footer carries a verify URL ending in the
+ * stamp id, which is enough to look the full stamp up and check it against the
+ * text it travelled with.
+ *
+ * This is what makes "detect that their agent wrote this" work in practice: the
+ * disclosure we emit is also the marker we read back.
+ */
+export function extractStampReference(content: string): {
+  stampId: string | null;
+  header: ProvenanceStamp | null;
+} {
+  const headerLine = content
+    .split(/\r?\n/)
+    .find((l) => new RegExp(`^\\s*${PROVENANCE_HEADER}:`, "i").test(l));
+  const header = headerLine ? parseHeader(headerLine) : null;
+  if (header) return { stampId: stampId(header), header };
+
+  // Footer form: "… · verify https://host/v/<id>"
+  const m = content.match(/\bverify\s+\S*?\/v\/([A-Za-z0-9_-]{8,})/i);
+  return { stampId: m?.[1] ?? null, header: null };
+}
+
+/**
  * Remove TTMC footers and headers from text. Used on inbound relayed messages
  * so the hash is computed over the author's actual words, not over a previous
  * hop's disclosure.

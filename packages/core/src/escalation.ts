@@ -183,6 +183,8 @@ const STOPWORDS = new Set([
   "the", "a", "an", "and", "or", "but", "of", "to", "in", "on", "for", "with",
   "is", "are", "be", "do", "not", "no", "never", "any", "my", "our", "i", "we",
   "that", "this", "it", "as", "at", "by", "from", "about", "into", "over",
+  "so", "if", "up", "us", "me", "you", "your", "their", "them", "its", "always",
+  "ask", "when", "anyone", "someone",
 ]);
 
 /**
@@ -191,10 +193,14 @@ const STOPWORDS = new Set([
  * words appear in the turn. Crude, and tuned to over-trigger rather than miss.
  */
 function boundaryFires(boundary: string, text: string): boolean {
+  // Two characters, not three. A `length > 2` filter silently discarded
+  // exactly the tokens fences are usually built around — "Q3", "HR", "AI",
+  // "K8s" — so a boundary naming one could never fire. Short filler words are
+  // handled by the stopword list instead, which is the right tool for it.
   const keys = uniq(
     words(boundary)
       .map((w) => w.toLowerCase())
-      .filter((w) => w.length > 2 && !STOPWORDS.has(w)),
+      .filter((w) => w.length >= 2 && !STOPWORDS.has(w)),
   );
   if (keys.length === 0) return false;
   const hay = new Set(words(text).map((w) => w.toLowerCase()));

@@ -18,7 +18,8 @@
     "db:generate": "pnpm --filter @ttmc/web db:generate",
     "db:push": "pnpm --filter @ttmc/web db:push",
     "demo": "node scripts/demo.mjs",
-    "demo:record": "node scripts/record.mjs"
+    "demo:record": "node scripts/record.mjs",
+    "demo:slack": "node scripts/slack-demo.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.3",
