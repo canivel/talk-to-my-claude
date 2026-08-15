@@ -15,7 +15,10 @@
  * developed on Windows. GitHub renders SVG through <img>, which runs CSS but
  * blocks scripts, so pure CSS keyframes are the one technique that survives.
  *
- *   pnpm demo:record        # requires `pnpm dev` in another terminal
+ *   pnpm demo:record          # the end-to-end run
+ *   pnpm demo:record:slack    # the Slack detect-and-route run
+ *
+ * Both require `pnpm dev` in another terminal.
  */
 
 import { spawn } from "node:child_process";
@@ -24,7 +27,30 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OUT = resolve(HERE, "../docs/demo-run.svg");
+
+/** Each recordable demo, and how its frame should be labelled. */
+const TARGETS = {
+  demo: {
+    script: "demo.mjs",
+    out: "../docs/demo-run.svg",
+    chrome: "pnpm demo",
+    subtitle: "· end-to-end, no inference key",
+  },
+  slack: {
+    script: "slack-demo.mjs",
+    out: "../docs/demo-slack.svg",
+    chrome: "pnpm demo:slack",
+    subtitle: "· detect, then decide",
+  },
+};
+
+const targetName = process.argv[2] ?? "demo";
+const TARGET = TARGETS[targetName];
+if (!TARGET) {
+  console.error(`unknown target "${targetName}". try: ${Object.keys(TARGETS).join(", ")}`);
+  process.exit(1);
+}
+const OUT = resolve(HERE, TARGET.out);
 
 const COLS = 74;
 const FONT = 15;
@@ -86,6 +112,44 @@ function parseAnsi(line) {
 
 const escapeXml = (s) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** Visible width, ignoring escape codes. */
+const visibleLength = (s) => s.replace(/\x1b\[[0-9;]*m/g, "").length;
+
+/**
+ * Wrap to COLS, carrying the active colour across the break.
+ *
+ * SVG text does not wrap on its own, so an unwrapped line simply runs off the
+ * side of the frame — visible in the render, invisible in the data, which is
+ * how it survived a rewrite. The BODY_LINES guard counts lines AFTER wrapping
+ * for the same reason.
+ */
+function wrap(line) {
+  if (visibleLength(line) <= COLS) return [line];
+
+  const out = [];
+  let current = "";
+  let width = 0;
+  let active = "";
+
+  for (const tok of line.split(/(\x1b\[[0-9;]*m|\s+)/).filter((t) => t !== "")) {
+    if (/^\x1b\[/.test(tok)) {
+      current += tok;
+      active = /\[0m$/.test(tok) ? "" : tok;
+      continue;
+    }
+    if (width + tok.length > COLS && width > 0) {
+      out.push(current);
+      current = `${active}  `;
+      width = 2;
+      if (/^\s+$/.test(tok)) continue;
+    }
+    current += tok;
+    width += tok.length;
+  }
+  if (current.trim()) out.push(current);
+  return out;
+}
 
 function tspans(text) {
   return parseAnsi(text)
@@ -193,7 +257,7 @@ text{fill:${PALETTE.fg};white-space:pre}
 <circle cx="20" cy="18" r="5.5" fill="#ff5f56"/>
 <circle cx="39" cy="18" r="5.5" fill="#ffbd2e"/>
 <circle cx="58" cy="18" r="5.5" fill="#27c93f"/>
-<text x="${width / 2}" y="23" text-anchor="middle" font-size="12" fill="#5b6371">pnpm demo</text>
+<text x="${width / 2}" y="23" text-anchor="middle" font-size="12" fill="#5b6371">${escapeXml(meta.chrome)}</text>
 <text x="${PAD}" y="${CHROME + 28}" font-size="15" font-weight="700" fill="${PALETTE[36]}">talk-to-my-claude<tspan font-weight="400" fill="#5b6371">  ${escapeXml(meta.subtitle)}</tspan></text>
 ${body.join("\n")}
 ${segs}
@@ -206,7 +270,7 @@ async function main() {
   let pending = "";
   let done = null;
 
-  const child = spawn(process.execPath, [resolve(HERE, "demo.mjs")], {
+  const child = spawn(process.execPath, [resolve(HERE, TARGET.script)], {
     env: { ...process.env, TTMC_DEMO_JSON: "1", FORCE_COLOR: "1" },
     stdio: ["ignore", "pipe", "inherit"],
   });
@@ -228,7 +292,7 @@ async function main() {
         scenes.push({ n: ev.n, title: ev.title, lines: [] });
         process.stdout.write(`  ${String(ev.n).padStart(2, "0")} ${ev.title}\n`);
       } else if (ev.type === "line" && scenes.length > 0) {
-        scenes.at(-1).lines.push(ev.text);
+        scenes.at(-1).lines.push(...wrap(ev.text));
       } else if (ev.type === "done") {
         done = ev;
       } else if (ev.type === "fail") {
@@ -238,9 +302,17 @@ async function main() {
   });
 
   const code = await new Promise((r) => child.on("close", r));
-  if (code !== 0 || !done) {
+  if (code !== 0) {
     console.error(`\ndemo exited ${code} — not writing an SVG of a failed run.`);
-    process.exit(code || 1);
+    process.exit(code);
+  }
+  if (!done) {
+    // Distinct from a failed run, and it means the demo forgot to emit its
+    // terminating event — conflating the two sent me hunting the wrong bug.
+    console.error(
+      `\n${TARGET.script} exited cleanly but never emitted a "done" event, so the run cannot be confirmed complete.`,
+    );
+    process.exit(1);
   }
 
   const over = scenes.filter((s) => s.lines.length > BODY_LINES);
@@ -252,7 +324,7 @@ async function main() {
     process.exit(1);
   }
 
-  const svg = buildSvg(scenes, { subtitle: "· end-to-end, no inference key" });
+  const svg = buildSvg(scenes, { subtitle: TARGET.subtitle, chrome: TARGET.chrome });
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, svg, "utf8");
 

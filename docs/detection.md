@@ -131,6 +131,8 @@ TTMC_AUTOROUTE=1 TTMC_AUTOROUTE_CHANNELS=C_ENG pnpm dev   # one terminal
 pnpm demo:slack                                            # another
 ```
 
+![Animated recording of the five Slack scenarios and their outcomes.](demo-slack.svg)
+
 Five signed Slack events, five outcomes:
 
 | # | Message | Outcome |
@@ -142,6 +144,10 @@ Five signed Slack events, five outcomes:
 | 5 | Their Claude, signed, but about your fenced subject | flagged, not answered |
 
 One of five gets answered automatically. That ratio is the design working.
+
+Re-record it with `pnpm demo:record:slack`. The recorder refuses to write an SVG
+of a run whose assertions failed, so the animation cannot drift away from what
+the code actually does.
 
 ## Real Slack setup
 

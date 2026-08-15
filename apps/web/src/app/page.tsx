@@ -79,6 +79,79 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <section>
+        <h2 className="text-xl font-semibold tracking-tight">
+          Spotting their AI, in Slack
+        </h2>
+        <p className="mt-2 max-w-2xl text-[var(--color-muted)]">
+          Someone sends you an AI-written message, TTMC notices, and your Claude
+          answers in the thread. Noticing is the easy-sounding part, so here is
+          exactly how much each signal is worth.
+        </p>
+
+        <div className="panel mt-5 overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-[var(--color-edge)]">
+                <th className="label px-4 py-3 font-normal">Signal</th>
+                <th className="label px-4 py-3 font-normal">Certain about</th>
+                <th className="label px-4 py-3 font-normal">Answers on its own?</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--color-edge)]">
+              <tr>
+                <td className="px-4 py-3">
+                  <span className="font-medium">TTMC-1 signature</span>
+                  <span className="block text-xs text-[var(--color-faint)]">
+                    ours, and verified
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-[var(--color-good)]">Authorship</td>
+                <td className="px-4 py-3">Yes</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-3">
+                  <span className="font-medium">Claude&apos;s watermark</span>
+                  <span className="block text-xs text-[var(--color-faint)]">
+                    live since Aug 2026
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-[var(--color-warn)]">Involvement only</td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">No</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-3">
+                  <span className="font-medium">Boilerplate score</span>
+                  <span className="block text-xs text-[var(--color-faint)]">
+                    the meter above
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">Style only</td>
+                <td className="px-4 py-3 text-[var(--color-muted)]">No</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-[var(--color-muted)]">
+          Anthropic began watermarking Claude&apos;s text in August 2026. It is
+          real and it is useful, and it proves less than people assume: only
+          Anthropic can read it, and a hit means their model was{" "}
+          <em>involved</em>, not that it <em>wrote</em> the text. Someone who used
+          Claude to fix their grammar carries the same mark. Treating that as
+          authorship would answer a colleague&apos;s own words back at them with a
+          machine — so it never triggers a reply on its own.
+        </p>
+
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[var(--color-muted)]">
+          And detecting a machine is only half the question. The other half is
+          whether the <em>subject</em> should be automated at all: contracts,
+          conflict, credentials, money past your ceiling, and anything you asked
+          to be asked about are never answered automatically, however certain the
+          detector is.
+        </p>
+      </section>
+
       <section className="panel p-6">
         <h2 className="text-xl font-semibold tracking-tight">
           Where this could go wrong, said out loud

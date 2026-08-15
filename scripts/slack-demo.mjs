@@ -19,6 +19,7 @@ import { createHmac } from "node:crypto";
 const BASE = (process.env.TTMC_API_URL ?? "http://localhost:3000").replace(/\/+$/, "");
 const SIGNING_SECRET = process.env.SLACK_SIGNING_SECRET ?? "demo-slack-signing-secret";
 const CHANNEL = process.env.TTMC_AUTOROUTE_CHANNELS?.split(",")[0]?.trim() || "C_ENG";
+const JSON_MODE = process.env.TTMC_DEMO_JSON === "1";
 
 const C = {
   reset: "\x1b[0m", dim: "\x1b[90m", bold: "\x1b[1m",
@@ -30,7 +31,8 @@ let failures = 0;
 
 function expect(cond, msg) {
   if (!cond) {
-    console.log(`   ${C.red}${C.bold}FAILED${C.reset} ${msg}`);
+    if (JSON_MODE) emit({ type: "fail", text: msg });
+    else console.log(`   ${C.red}${C.bold}FAILED${C.reset} ${msg}`);
     failures++;
   }
 }
@@ -90,8 +92,23 @@ async function stampedMessage(token, text) {
   return turn.disclosedText;
 }
 
-const heading = (n, t) => console.log(`\n${C.amber}${C.bold}${n} ${t}${C.reset}`);
-const say = (t) => console.log(`   ${t}${C.reset}`);
+/**
+ * Same dual output as demo.mjs: pretty for a terminal, one JSON event per line
+ * under TTMC_DEMO_JSON=1 so record.mjs can group the run into scenes.
+ */
+function emit(event) {
+  if (JSON_MODE) {
+    console.log(JSON.stringify(event));
+  } else if (event.type === "scene") {
+    console.log(`\n${C.amber}${C.bold}${String(event.n).padStart(2, "0")} ${event.title}${C.reset}`);
+  } else {
+    console.log(`   ${event.text}${C.reset}`);
+  }
+}
+
+let step = 0;
+const heading = (_n, title) => emit({ type: "scene", n: ++step, title });
+const say = (text) => emit({ type: "line", text });
 
 async function waitForServer() {
   for (let i = 0; i < 60; i++) {
@@ -106,8 +123,10 @@ async function waitForServer() {
 }
 
 async function main() {
-  console.log(`${C.cyan}${C.bold}talk-to-my-claude${C.reset}${C.dim} · Slack use case · ${BASE}${C.reset}`);
-  console.log(`${C.dim}channel ${CHANNEL} · auto-route ${process.env.TTMC_AUTOROUTE === "1" ? "ON" : "OFF"}${C.reset}`);
+  if (!JSON_MODE) {
+    console.log(`${C.cyan}${C.bold}talk-to-my-claude${C.reset}${C.dim} · Slack use case · ${BASE}${C.reset}`);
+    console.log(`${C.dim}channel ${CHANNEL} · auto-route ${process.env.TTMC_AUTOROUTE === "1" ? "ON" : "OFF"}${C.reset}`);
+  }
 
   await waitForServer();
   const health = await fetch(`${BASE}/api/v1/slack/events`).then((r) => r.json());
@@ -197,13 +216,20 @@ async function main() {
   say(`${C.dim}detection says machine; my own fence says ask me — both have to agree${C.reset}`);
 
   if (failures > 0) {
-    console.log(`\n${C.red}${C.bold}${failures} check(s) failed.${C.reset}`);
+    if (!JSON_MODE) console.log(`\n${C.red}${C.bold}${failures} check(s) failed.${C.reset}`);
     process.exit(1);
   }
-  console.log(`\n${C.green}${C.bold}All 5 checks passed.${C.reset}${C.dim} 1 of 5 was answered automatically.${C.reset}`);
+
+  emit({ type: "done", text: `All ${step} checks passed` });
+  if (!JSON_MODE) {
+    console.log(
+      `\n${C.green}${C.bold}All ${step} checks passed.${C.reset}${C.dim} 1 of ${step} was answered automatically.${C.reset}`,
+    );
+  }
 }
 
 main().catch((e) => {
-  console.log(`\n${C.red}${C.bold}FAILED${C.reset} ${e.message}`);
+  if (JSON_MODE) emit({ type: "fail", text: e.message });
+  else console.log(`\n${C.red}${C.bold}FAILED${C.reset} ${e.message}`);
   process.exit(1);
 });

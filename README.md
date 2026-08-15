@@ -79,16 +79,19 @@ escalation gate too. Contracts, conflict, credentials, money over your ceiling,
 and anything you fenced off in your persona are never auto-answered however
 confidently a machine is detected.
 
+![Animated recording of the Slack demo, one step at a time: a request with a bad signature rejected with 401 before the payload is parsed; a colleague writing personally, ignored; obvious AI boilerplate flagged as agent-likely but not answered because style is not provenance; a signed message from their Claude verified and auto-answered; and a signed message about a subject the user fenced off, verified as machine-written and still held back for them.](docs/demo-slack.svg)
+
 ```bash
 SLACK_SIGNING_SECRET=demo-slack-signing-secret TTMC_AUTOROUTE=1 TTMC_AUTOROUTE_CHANNELS=C_ENG pnpm dev
 
 pnpm demo:slack
 ```
 
-Five signed Slack events: a forged request rejected at `401`, a human ignored,
-obvious slop flagged but **not** answered, a signed agent message auto-answered,
-and a signed agent message about a fenced subject held back. **One of five gets
-answered automatically** — that ratio is the design working, not failing.
+Five signed Slack events, and **one of five gets answered automatically**. That
+ratio is the design working, not failing — a tool that answers everything is a
+tool nobody should install. No Slack workspace needed: the demo signs its own
+requests exactly the way Slack does, and the relay rejects them if it gets the
+signature wrong.
 
 Full detail, including real Slack setup and the known gaps:
 [docs/detection.md](docs/detection.md).

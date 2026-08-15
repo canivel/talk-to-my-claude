@@ -70,11 +70,13 @@ export function SlopMeter({
         </ul>
       )}
 
-      <p className="mt-4 border-t border-[var(--color-edge)] pt-3 text-xs text-[var(--color-faint)]">
+      <p className="mt-4 border-t border-[var(--color-edge)] pt-3 text-xs leading-relaxed text-[var(--color-faint)]">
         Measures boilerplate density, not authorship. Edited model output scores low;
         a human writing in corporate register scores high. It describes the text, not
-        the person — for authorship there is{" "}
-        <span className="text-[var(--color-muted)]">only the signature</span>.
+        the person. Claude&apos;s own watermark answers a different question again —
+        whether a model was <em>involved</em>, not whether it{" "}
+        <em>wrote</em> this — so for authorship there is{" "}
+        <span className="text-[var(--color-muted)]">still only the signature</span>.
       </p>
     </div>
   );
