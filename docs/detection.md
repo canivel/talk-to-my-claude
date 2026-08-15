@@ -5,58 +5,80 @@ your Claude answers it. This is how the noticing works, and where it refuses to.
 
 ---
 
-## There is no fingerprint in Claude's output
+## Claude's text is watermarked — and that proves less than it sounds
 
-Worth stating first, because the whole design follows from it.
+Anthropic began watermarking Claude's text output with models from
+**2026-08-14**, with earlier models being backfilled, driven by the EU AI Act's
+Article 50 transparency requirements.
 
-**Anthropic does not put a watermark or fingerprint in Claude's text.** There is
-no marker in the words to look for. The same is true of GPT and of essentially
-every deployed chat model.
+The scheme is [Kirchenbauer et al., *A Watermark for Large Language
+Models*](https://arxiv.org/abs/2301.10226) (arXiv 2301.10226, ICML 2023).
+Rather than inserting anything, it replaces the **source of randomness** used
+when the model picks among equally viable next tokens, seeding that choice from
+a secret key plus the preceding words. In Anthropic's words: *"Nothing is added
+to the text and there are no hidden characters."*
 
-- **SynthID-Text** (Google DeepMind) is real and open-sourced, but it marks
-  Gemini output, and only when the generating provider applies it. It says
-  nothing about Claude.
-- **C2PA** covers images and media. Not chat messages.
-- **Commercial "AI detectors"** are statistical classifiers over style. They
-  have well-documented false-positive problems, and those errors land hardest on
-  non-native English writers. Acting on that automatically would be
-  irresponsible, and accusing a colleague on the strength of it would be worse.
+Two properties of it drive this entire module.
 
-So detection from the text alone is guesswork. That is a constraint to design
-around, not a gap to paper over.
+### Only the vendor can detect it
 
-## What TTMC does instead
+Detection requires their key. There is no offline check available to us or to
+anyone else, so this tier is a **network call**, not a pure function. Anthropic
+has said a detection API is coming and its shape is not yet published, so what
+ships here is an interface with no live implementation — pointed at an endpoint
+by configuration when one exists.
 
-It does not look for a secret Anthropic hid in the text. It reads back the
-signature **we** put there.
+Writing a speculative client against a guessed endpoint would be worse than
+having none: it would look implemented while failing closed in a way nobody
+noticed.
 
-If the sender's side runs TTMC, their message already carries a TTMC-1 stamp —
-in the disclosure footer that travels with it through Slack, email, or a paste.
-Identifying it is cryptography, not statistics. That is the tier allowed to
-drive automation.
+### It proves involvement, not authorship
 
-| Tier | Signal | Certainty | Can it trigger an automatic reply? |
+This is the part that changes the design. Anthropic is explicit that a positive
+result *"can only determine that Claude was likely involved with the content at
+some point"* and *"cannot distinguish 'Claude wrote this' from 'Claude heavily
+edited this.'"*
+
+Someone who ran their own writing through Claude to fix the grammar carries the
+same mark as someone who had it write the whole thing.
+
+Treating that as authorship would auto-answer a colleague's own words because
+they used a model as an editor — and the people most likely to do that are
+non-native English speakers, the same group naive AI detectors already treat
+worst. So a watermark hit gets its own verdict, `machine-involved`, and **does
+not clear the auto-answer bar by default**.
+
+Anthropic also notes detection *"doesn't work well on small samples"*, and that
+*"light editing probably won't remove the watermark completely; a complete
+rewrite where every word is replaced will."*
+
+### So: four tiers, ranked by what they license you to conclude
+
+| Tier | Signal | Certain about | Auto-answers by default? |
 |---|---|---|---|
-| 1 | TTMC-1 signature, verified | **Exact** | **Yes** — the default and only bar |
-| 2 | Vendor watermark | Exact | Yes, if one ever ships. Registry is empty |
-| 3 | Boilerplate score | Probabilistic | **No**, unless you explicitly lower the bar |
+| 1 | TTMC-1 signature, verified | **Authorship** | **Yes** |
+| 2 | Vendor watermark | Involvement only | No — opt in explicitly |
+| 3 | Boilerplate score | Style only | No |
+| 4 | Nothing found | Nothing. Absence of a mark is not evidence of a human | No |
 
-Implementation: [`packages/core/src/detect.ts`](../packages/core/src/detect.ts).
+A TTMC-1 signature and a watermark answer different questions, and TTMC-1
+answers the one that matters here. This is not a rivalry — a watermark is a
+useful second signal, and the two are combined rather than ranked against each
+other. When a verified signature says a *human* wrote something and a watermark
+says a model was involved, both facts are kept: a person wrote it, with a model's
+help somewhere along the way.
 
 ### Verdicts
 
 ```
-agent-verified   signature checked. The only thing we actually know.
-agent-claimed    a stamp is present but unverified. A claim, not proof.
-agent-likely     style says machine. A guess, capped at 0.65 confidence.
-human-verified   signature says a person wrote it personally → never auto-answer.
-forged           a stamp that fails verification. More interesting than no stamp.
-unknown          nothing suggests a machine.
+agent-verified    signature checked. Authorship. The only default auto-answer.
+agent-claimed     a stamp is present but unverified. A claim, not proof.
+machine-involved  a vendor watermark hit. A model touched it — not that it wrote it.
+agent-likely      style says machine. A guess, capped at 0.65 confidence.
+human-verified    signature says a person wrote it personally → never auto-answer.
+forged            a stamp that fails verification. More interesting than no stamp.
+unknown           nothing suggests a machine.
 ```
-
-`agent-claimed` exists because finding a stamp is not checking one. The relay
-holds the key, so `detectOrigin` reports the claim and `applyVerification`
-resolves it — up to `agent-verified`, or down to `forged`.
 
 ## Two gates, not one
 
@@ -88,7 +110,8 @@ a contract in the first place.
 ```ts
 {
   enabled: false,                            // opt in, deliberately
-  minVerdict: "agent-verified",              // proof, not style
+  minVerdict: "agent-verified",              // proof of authorship, not style
+                                             // nor a watermark's "involvement"
   allowChannels: [],                         // fails closed
   neverAutoAnswer: [],
   requireApprovalForNewCounterparts: true,   // ask once per person
@@ -142,3 +165,7 @@ without that, anyone who learns the URL can make your agent speak.
 - **Auto-route policy is environment-driven**, not editable in the UI.
 - **Dedupe is in-process.** Fine for one instance; needs shared storage behind a
   load balancer, or Slack's retries will double-answer.
+- **No live watermark detector.** Anthropic's detection API is not published
+  yet. Set `WATERMARK_DETECT_URL` when it is; the seam and its tests are in
+  place, including the rule that a detector outage reads as *unknown* rather
+  than *no watermark*.

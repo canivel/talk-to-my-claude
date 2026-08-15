@@ -1,37 +1,52 @@
 /**
- * Did an agent write this, and should my agent answer it?
+ * Did a machine write this, and should my agent answer it?
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * READ THIS FIRST — the state of AI text fingerprinting, as of this writing.
+ * THE STATE OF AI TEXT WATERMARKING
  *
- * There is no watermark in Claude's text output. Anthropic does not publish
- * one, and no marker exists in the words for anyone to look for. The same is
- * true of GPT and of essentially every deployed chat model. Google DeepMind's
- * SynthID-Text is real and open-sourced, but it only marks Gemini output, and
- * only when the generating provider applies it. C2PA covers images and media,
- * not chat messages.
+ * Anthropic began watermarking Claude's text output with models from
+ * 2026-08-14, with older models being backfilled. The scheme is the one from
+ * Kirchenbauer et al., "A Watermark for Large Language Models" (arXiv
+ * 2301.10226): rather than inserting anything into the text, it replaces the
+ * source of randomness used when the model chooses among equally viable next
+ * tokens, seeding that choice from a secret key plus the preceding words. In
+ * Anthropic's words: "Nothing is added to the text and there are no hidden
+ * characters."
  *
- * So anyone claiming to "detect AI text" from the text alone is doing
- * statistics, and the error bars are wide enough that acting on it
- * automatically is a bad idea. That is a hard constraint, not a gap to paper
- * over.
+ * Two properties of it drive everything below.
  *
- * What TTMC does instead: it is not trying to detect a secret Anthropic put
- * there. It reads back the signature *we* put there. If the sender's side runs
- * TTMC, their message carries a TTMC-1 stamp, and identifying it is
- * cryptography rather than guesswork. That is the tier that should carry
- * automation.
+ * 1. ONLY THE VENDOR CAN DETECT IT. Detection needs their key. There is no
+ *    local check, so this tier is a network call to a vendor endpoint — not a
+ *    pure function. Anthropic's detection API was announced as "soon" and its
+ *    shape is not yet published, so the detector here is an interface with no
+ *    live implementation, configured by URL when one exists.
  *
- * Hence three tiers, in descending order of how much they are trusted:
+ * 2. IT PROVES INVOLVEMENT, NOT AUTHORSHIP. Anthropic is explicit: it "can
+ *    only determine that Claude was likely involved with the content at some
+ *    point," and "cannot distinguish 'Claude wrote this' from 'Claude heavily
+ *    edited this.'" Someone who ran their own writing through Claude to fix
+ *    the grammar carries the mark.
  *
- *   1. TTMC-1 signature   — exact. Works today. The only tier allowed to
- *                           trigger an automatic reply by default.
- *   2. Vendor watermark   — exact, if one ever ships. The registry below is
- *                           empty and documented so a real detector can drop
- *                           in without rearchitecting anything.
- *   3. Boilerplate score  — probabilistic. Good for "this is worth ignoring",
- *                           never good enough to act on silently.
+ *    That second point is a safety constraint, not a footnote. Treating a
+ *    watermark hit as authorship would auto-answer a colleague's own words
+ *    because they used Claude as an editor — and the people most likely to do
+ *    that are non-native English speakers, the same group that naive AI
+ *    detectors already treat worst. So a watermark hit gets its own verdict,
+ *    `machine-involved`, and does not clear the auto-answer bar by default.
+ *
+ * Anthropic also notes it works poorly on short samples, and that light editing
+ * probably leaves it intact while a full rewrite removes it.
+ *
  * ─────────────────────────────────────────────────────────────────────────────
+ * So, four tiers, ordered by what they actually license you to conclude:
+ *
+ *   1. TTMC-1 signature   — exact, and about AUTHORSHIP. Ours, so we can check
+ *                           it ourselves. The only tier that auto-answers by
+ *                           default.
+ *   2. Vendor watermark   — exact, but only about INVOLVEMENT. Remote call.
+ *   3. Boilerplate score  — probabilistic, about STYLE. Never conclusive.
+ *   4. Nothing            — which is not evidence of a human. Absence of a
+ *                           mark means absence of a mark.
  */
 
 import type { ProvenanceStamp, SlopReport } from "./types.js";
@@ -45,13 +60,14 @@ export type OriginSource =
   | "none";
 
 /**
- * `agent-verified` is the only verdict that means we *know*. `agent-claimed`
- * is a stamp we found but have not checked — the relay upgrades it after
- * verification, and a claim that fails verification is worse than no claim.
+ * `agent-verified` is the only verdict that means we know who wrote it.
+ * `machine-involved` means a vendor watermark says their model touched the
+ * text — which is a different and weaker claim, deliberately kept separate.
  */
 export type OriginVerdict =
   | "agent-verified"
   | "agent-claimed"
+  | "machine-involved"
   | "agent-likely"
   | "unknown"
   | "human-verified"
@@ -69,27 +85,124 @@ export interface OriginDetection {
   slop: SlopReport | null;
   /** The message with any disclosure stripped — the author's actual words. */
   content: string;
+  watermark: WatermarkFinding | null;
   reasons: string[];
 }
 
-/**
- * Plug point for a real watermark detector, if a vendor ever ships one.
- *
- * Deliberately empty. Registering a detector here that guesses would quietly
- * promote tier 3 into tier 2 and let statistics drive automation, which is the
- * exact mistake this module is arranged to prevent.
- */
-export interface VendorWatermarkDetector {
-  id: string;
+// ─── Tier 2: vendor watermarks ──────────────────────────────────────────────
+
+export interface WatermarkFinding {
   vendor: string;
-  /** Return null when the detector cannot speak to this text at all. */
-  detect(text: string): { present: boolean; confidence: number } | null;
+  present: boolean;
+  /** Vendor-reported confidence, 0..1. */
+  confidence: number;
+  /**
+   * What a positive result licenses you to say. Every shipping scheme today is
+   * `involvement`; the field exists so a future scheme that genuinely attests
+   * authorship is not silently treated as the same thing.
+   */
+  meaning: "involvement" | "authorship";
 }
 
-export const vendorWatermarkDetectors: VendorWatermarkDetector[] = [];
+/**
+ * A watermark detector. Async because detection belongs to whoever holds the
+ * key — for Claude that is Anthropic, over an API, and there is no offline
+ * check available to us or to anyone else.
+ */
+export interface WatermarkDetector {
+  id: string;
+  vendor: string;
+  /**
+   * Below this many characters the vendor's own guidance is that detection is
+   * unreliable, so we do not spend a call or, worse, trust a coin flip.
+   */
+  minChars: number;
+  detect(text: string): Promise<WatermarkFinding | null>;
+}
+
+/**
+ * No detector ships here.
+ *
+ * Anthropic's detection API was announced as forthcoming and its shape is not
+ * published yet. Writing a speculative client against a guessed endpoint would
+ * be worse than having none — it would look implemented while failing closed in
+ * a way nobody noticed. `createHttpWatermarkDetector` is the seam to fill in.
+ */
+export const watermarkDetectors: WatermarkDetector[] = [];
+
+export interface HttpDetectorConfig {
+  id?: string;
+  vendor?: string;
+  url: string;
+  apiKey?: string;
+  minChars?: number;
+  /** Injected for testing. Defaults to global fetch. */
+  fetchImpl?: typeof fetch;
+}
+
+/**
+ * Generic HTTP detector, shaped for "POST the text, get back a probability".
+ *
+ * Deliberately configuration-driven rather than hard-coded to a vendor: when
+ * Anthropic publishes the endpoint, this becomes one environment variable
+ * rather than a code change. Any non-OK response yields `null` — unknown, not
+ * absent — because a detector being down must never read as "no watermark".
+ */
+export function createHttpWatermarkDetector(cfg: HttpDetectorConfig): WatermarkDetector {
+  const fetchImpl = cfg.fetchImpl ?? globalThis.fetch;
+  return {
+    id: cfg.id ?? "http-watermark",
+    vendor: cfg.vendor ?? "anthropic",
+    minChars: cfg.minChars ?? 400,
+    async detect(text) {
+      try {
+        const res = await fetchImpl(cfg.url, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(cfg.apiKey ? { "x-api-key": cfg.apiKey } : {}),
+          },
+          body: JSON.stringify({ text }),
+        });
+        if (!res.ok) return null;
+        const body = (await res.json()) as {
+          watermarked?: boolean;
+          present?: boolean;
+          confidence?: number;
+          probability?: number;
+        };
+        const present = body.watermarked ?? body.present;
+        if (typeof present !== "boolean") return null;
+        return {
+          vendor: cfg.vendor ?? "anthropic",
+          present,
+          confidence: body.confidence ?? body.probability ?? (present ? 0.9 : 0),
+          // Every deployed scheme today attests processing, not authorship.
+          meaning: "involvement",
+        };
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
+/** Run the first applicable detector. Null means "we do not know". */
+export async function checkWatermark(
+  text: string,
+  detectors: WatermarkDetector[] = watermarkDetectors,
+): Promise<WatermarkFinding | null> {
+  for (const d of detectors) {
+    if (text.length < d.minChars) continue;
+    const found = await d.detect(text);
+    if (found) return found;
+  }
+  return null;
+}
+
+// ─── Tier 1 + 3: what can be decided locally ────────────────────────────────
 
 export interface DetectOptions {
-  detectors?: VendorWatermarkDetector[];
   /** Boilerplate score at or above which tier 3 says "agent-likely". */
   slopThreshold?: number;
 }
@@ -97,7 +210,6 @@ export interface DetectOptions {
 export const DEFAULT_SLOP_THRESHOLD = 55;
 
 export function detectOrigin(raw: string, opts: DetectOptions = {}): OriginDetection {
-  const detectors = opts.detectors ?? vendorWatermarkDetectors;
   const threshold = opts.slopThreshold ?? DEFAULT_SLOP_THRESHOLD;
   const content = stripDisclosure(raw);
   const reasons: string[] = [];
@@ -120,29 +232,13 @@ export function detectOrigin(raw: string, opts: DetectOptions = {}): OriginDetec
       stamp: header,
       slop: scoreSlop(content),
       content,
+      watermark: null,
       reasons,
     };
   }
 
-  // ── Tier 2: a vendor watermark. Nothing registered today.
-  for (const d of detectors) {
-    const hit = d.detect(content);
-    if (hit?.present) {
-      reasons.push(`${d.vendor} watermark detected by ${d.id}`);
-      return {
-        verdict: "agent-verified",
-        confidence: hit.confidence,
-        source: "vendor-watermark",
-        stampId: null,
-        stamp: null,
-        slop: scoreSlop(content),
-        content,
-        reasons,
-      };
-    }
-  }
-
-  // ── Tier 3: style. A guess, and labelled as one.
+  // ── Tier 3: style. A guess, and labelled as one. (Tier 2 is a network call
+  //    and is folded in afterwards by `applyWatermark`.)
   const slop = scoreSlop(content);
   if (slop.score >= threshold) {
     reasons.push(
@@ -159,6 +255,7 @@ export function detectOrigin(raw: string, opts: DetectOptions = {}): OriginDetec
       stamp: null,
       slop,
       content,
+      watermark: null,
       reasons,
     };
   }
@@ -172,6 +269,7 @@ export function detectOrigin(raw: string, opts: DetectOptions = {}): OriginDetec
     stamp: null,
     slop,
     content,
+    watermark: null,
     reasons,
   };
 }
@@ -211,15 +309,57 @@ export function applyVerification(
   };
 }
 
+/**
+ * Fold a watermark result in.
+ *
+ * A TTMC signature outranks it and is left alone: the signature speaks to
+ * authorship, the watermark only to involvement, and the stronger claim wins.
+ * A watermark does upgrade an `unknown` or `agent-likely` message, because
+ * knowing a model touched it is worth more than a style guess — but only as far
+ * as `machine-involved`, never to authorship.
+ */
+export function applyWatermark(
+  detection: OriginDetection,
+  finding: WatermarkFinding | null,
+): OriginDetection {
+  if (!finding || !finding.present) return detection;
+
+  const next: OriginDetection = {
+    ...detection,
+    watermark: finding,
+    reasons: [
+      ...detection.reasons,
+      `${finding.vendor} watermark detected`,
+      finding.meaning === "involvement"
+        ? "which proves the model was involved, not that it wrote this — someone who used it to edit their own writing carries the same mark"
+        : "which the vendor states attests authorship",
+    ],
+  };
+
+  if (detection.verdict === "agent-verified" || detection.verdict === "human-verified") {
+    // A checked signature is a stronger and more specific claim. In the human
+    // case it is also a direct contradiction worth keeping visible rather than
+    // overwriting: a person wrote it, and used a model somewhere along the way.
+    return next;
+  }
+
+  return {
+    ...next,
+    verdict: finding.meaning === "authorship" ? "agent-verified" : "machine-involved",
+    confidence: Math.max(detection.confidence, finding.confidence),
+    source: "vendor-watermark",
+  };
+}
+
 // ─── Auto-routing ───────────────────────────────────────────────────────────
 
 export interface AutoRoutePolicy {
   enabled: boolean;
   /**
    * The weakest verdict allowed to trigger an automatic reply.
-   * Defaults to `agent-verified`: only act on proof.
+   * Defaults to `agent-verified`: only act on proof of authorship.
    */
-  minVerdict: "agent-verified" | "agent-claimed" | "agent-likely";
+  minVerdict: "agent-verified" | "agent-claimed" | "machine-involved" | "agent-likely";
   /** Channels or conversations where auto-answering is permitted. */
   allowChannels: string[];
   /** Senders never auto-answered, whatever the detector says. */
@@ -239,13 +379,22 @@ export const DEFAULT_AUTOROUTE_POLICY: AutoRoutePolicy = {
   requireApprovalForNewCounterparts: true,
 };
 
+/**
+ * Ranked by strength of the AUTHORSHIP claim, which is the question
+ * auto-answering actually turns on.
+ *
+ * `machine-involved` sits above a style guess and below an unverified
+ * signature: it is certain about the wrong thing. A watermark tells you a model
+ * touched the text; only a signature tells you a model wrote it.
+ */
 const VERDICT_RANK: Record<OriginVerdict, number> = {
   forged: -1,
   unknown: 0,
   "human-verified": 0,
   "agent-likely": 1,
-  "agent-claimed": 2,
-  "agent-verified": 3,
+  "machine-involved": 2,
+  "agent-claimed": 3,
+  "agent-verified": 4,
 };
 
 export interface RouteContext {
@@ -356,7 +505,10 @@ export function decideRoute(
   if (VERDICT_RANK[detection.verdict] < VERDICT_RANK[policy.minVerdict]) {
     return {
       action: "notify-human",
-      reason: `Detected as ${detection.verdict}, and your policy needs ${policy.minVerdict} before answering automatically.`,
+      reason:
+        detection.verdict === "machine-involved"
+          ? "A watermark says a model was involved, but not that it wrote this — it could be their own words, edited. Your call."
+          : `Detected as ${detection.verdict}, and your policy needs ${policy.minVerdict} before answering automatically.`,
     };
   }
 

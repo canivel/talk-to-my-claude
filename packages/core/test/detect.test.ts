@@ -4,9 +4,14 @@ import {
   decideRoute,
   DEFAULT_AUTOROUTE_POLICY,
   detectOrigin,
+  applyWatermark,
+  checkWatermark,
+  createHttpWatermarkDetector,
+  watermarkDetectors,
   type AutoRoutePolicy,
-  type VendorWatermarkDetector,
+  type WatermarkDetector,
 } from "../src/detect.js";
+import type { WatermarkFinding } from "../src/detect.js";
 import { signStamp, withDisclosure } from "../src/provenance.js";
 
 const SECRET = "test-secret";
@@ -85,22 +90,79 @@ describe("tier 1 — TTMC-1 signature", () => {
 });
 
 describe("tier 2 — vendor watermark", () => {
-  // No vendor ships a text watermark for Claude, so the registry is empty by
-  // design. This proves the seam works when one eventually does.
-  const fake: VendorWatermarkDetector = {
-    id: "fake-v1",
-    vendor: "ExampleCorp",
-    detect: (t) => (t.includes("zzmarker") ? { present: true, confidence: 0.98 } : null),
-  };
-
-  it("ships with no detectors registered", () => {
-    expect(detectOrigin(AGENT_TEXT).source).not.toBe("vendor-watermark");
+  // Anthropic began watermarking Claude text from 2026-08-14 using the
+  // Kirchenbauer scheme (arXiv 2301.10226). Only they can detect it, so this
+  // tier is a remote call, and a hit proves INVOLVEMENT, not authorship.
+  const detector = (finding: Partial<WatermarkFinding> = {}): WatermarkDetector => ({
+    id: "test",
+    vendor: "anthropic",
+    minChars: 10,
+    detect: async () => ({
+      vendor: "anthropic",
+      present: true,
+      confidence: 0.97,
+      meaning: "involvement",
+      ...finding,
+    }),
   });
 
-  it("uses a registered detector when one exists", () => {
-    const d = detectOrigin(`${AGENT_TEXT} zzmarker`, { detectors: [fake] });
+  it("ships with no detector registered, because the API is not published", () => {
+    expect(watermarkDetectors).toEqual([]);
+  });
+
+  it("does not spend a call on text too short to judge", async () => {
+    let called = false;
+    const d: WatermarkDetector = {
+      id: "t", vendor: "anthropic", minChars: 1000,
+      detect: async () => { called = true; return null; },
+    };
+    expect(await checkWatermark("short", [d])).toBeNull();
+    expect(called).toBe(false);
+  });
+
+  it("reports involvement, NOT authorship", async () => {
+    const finding = await checkWatermark(AGENT_TEXT, [detector()]);
+    const d = applyWatermark(detectOrigin(HUMAN_TEXT), finding);
+    expect(d.verdict).toBe("machine-involved");
     expect(d.source).toBe("vendor-watermark");
-    expect(d.verdict).toBe("agent-verified");
+    expect(d.reasons.join(" ")).toMatch(/not that it wrote this/i);
+  });
+
+  it("upgrades a style guess, but only as far as involvement", async () => {
+    const finding = await checkWatermark(SLOP_TEXT, [detector()]);
+    expect(applyWatermark(detectOrigin(SLOP_TEXT), finding).verdict).toBe("machine-involved");
+  });
+
+  it("never overrides a checked signature, which is the stronger claim", async () => {
+    const { stamp, text } = stampedMessage("human");
+    const verified = applyVerification(detectOrigin(text), { valid: true, stamp });
+    const finding = await checkWatermark(AGENT_TEXT, [detector()]);
+    const d = applyWatermark(verified, finding);
+    // A person wrote it and used a model to edit. Both facts survive.
+    expect(d.verdict).toBe("human-verified");
+    expect(d.watermark?.present).toBe(true);
+  });
+
+  it("treats a detector outage as unknown, never as absent", async () => {
+    const down = createHttpWatermarkDetector({
+      url: "https://example.invalid/detect",
+      minChars: 1,
+      fetchImpl: async () => new Response("nope", { status: 503 }),
+    });
+    expect(await checkWatermark(AGENT_TEXT, [down])).toBeNull();
+    // And an unknown result leaves the verdict untouched.
+    expect(applyWatermark(detectOrigin(HUMAN_TEXT), null).verdict).toBe("unknown");
+  });
+
+  it("parses a vendor response through the configurable HTTP detector", async () => {
+    const ok = createHttpWatermarkDetector({
+      url: "https://example.invalid/detect",
+      minChars: 1,
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ watermarked: true, confidence: 0.91 }), { status: 200 }),
+    });
+    const found = await checkWatermark(AGENT_TEXT, [ok]);
+    expect(found).toMatchObject({ present: true, confidence: 0.91, meaning: "involvement" });
   });
 });
 
@@ -189,6 +251,33 @@ describe("decideRoute", () => {
       // Reasons are read by people: no raw trigger ids should leak through.
       expect(decision.reason).not.toContain("_");
     }
+  });
+
+  it("will not auto-answer on a watermark alone", async () => {
+    // The message may be their own words that a model merely edited. Answering
+    // it with an agent would be exactly the wrong call.
+    const d = applyWatermark(detectOrigin(HUMAN_TEXT), {
+      vendor: "anthropic", present: true, confidence: 0.99, meaning: "involvement",
+    });
+    expect(d.verdict).toBe("machine-involved");
+    const decision = decideRoute(d, ctx, open);
+    expect(decision.action).toBe("notify-human");
+    expect(decision.reason).toMatch(/not that it wrote this/i);
+
+    // An operator can opt in explicitly, and only then.
+    expect(decideRoute(d, ctx, { ...open, minVerdict: "machine-involved" }).action).toBe(
+      "auto-answer",
+    );
+  });
+
+  it("ranks a watermark above a style guess but below a signature", () => {
+    const wm = applyWatermark(detectOrigin(HUMAN_TEXT), {
+      vendor: "anthropic", present: true, confidence: 0.99, meaning: "involvement",
+    });
+    const policy = { ...open, minVerdict: "machine-involved" as const };
+    expect(decideRoute(wm, ctx, policy).action).toBe("auto-answer");
+    // Style alone still does not clear that bar.
+    expect(decideRoute(detectOrigin(SLOP_TEXT), ctx, policy).action).toBe("notify-human");
   });
 
   it("honours the never-auto-answer list", () => {

@@ -52,20 +52,26 @@ surfaced the
 The Slack case: someone sends you an AI-written message, TTMC notices, and your
 Claude answers — in the thread, disclosed.
 
-**There is no fingerprint in Claude's output to look for.** Anthropic does not
-watermark text, and neither does anyone else worth relying on: SynthID-Text
-marks Gemini, C2PA covers images, and commercial "AI detectors" are style
-classifiers with false-positive rates that land hardest on non-native English
-writers.
+Anthropic began watermarking Claude's text from **2026-08-14** using the scheme
+in [arXiv 2301.10226](https://arxiv.org/abs/2301.10226) — no hidden characters,
+just a keyed source of randomness steering the choice between equally viable
+words. Useful, and narrower than it sounds: **only Anthropic can detect it**,
+and a hit proves their model was *involved*, not that it *wrote* the text.
+Someone who used Claude to fix their grammar carries the same mark.
 
-So TTMC does not hunt for a secret in the words. It reads back the signature
-**it** put there:
+So TTMC combines it with the signature it puts there itself:
 
-| Tier | Signal | Certainty | May trigger an automatic reply? |
+| Tier | Signal | Certain about | Auto-answers by default? |
 |---|---|---|---|
-| 1 | TTMC-1 signature, verified | **Exact** | **Yes** — the default bar |
-| 2 | Vendor watermark | Exact | If one ever ships. Registry is empty |
-| 3 | Boilerplate score | Probabilistic | **No**, unless you lower the bar yourself |
+| 1 | TTMC-1 signature, verified | **Authorship** | **Yes** |
+| 2 | Vendor watermark | Involvement only | No — opt in explicitly |
+| 3 | Boilerplate score | Style only | No |
+
+Treating a watermark as authorship would auto-answer a colleague's own words
+because they ran them past a model — and the people most likely to do that are
+non-native English speakers, the group naive AI detectors already treat worst.
+So it gets its own verdict, `machine-involved`, and does not clear the bar on
+its own.
 
 And detection is only half the decision. *Did a machine write this* and *should
 a machine answer it* are different questions, so the inbound message runs the

@@ -1,10 +1,14 @@
 import {
   applyVerification,
+  applyWatermark,
+  checkWatermark,
+  createHttpWatermarkDetector,
   decideRoute,
   detectOrigin,
   evaluateEscalation,
   verifyStamp,
   type AutoRoutePolicy,
+  type WatermarkDetector,
 } from "@ttmc/core";
 import { SIGNING_SECRETS } from "@/env";
 import { personaFor, sessionIdentity } from "@/server/auth";
@@ -104,6 +108,12 @@ export async function POST(req: Request) {
       });
     }
 
+    // Tier 2. A vendor watermark proves their model touched the text, not that
+    // it wrote it, so this can raise the verdict to `machine-involved` and no
+    // further. Skipped entirely when no detector is configured, which is the
+    // default while Anthropic's detection API is still forthcoming.
+    detection = applyWatermark(detection, await checkWatermark(detection.content, detectors()));
+
     const identity = await sessionIdentity();
     if (!identity) {
       // No mapping from Slack workspace to TTMC account yet — see the roadmap.
@@ -175,6 +185,26 @@ export async function POST(req: Request) {
 }
 
 /**
+ * Watermark detectors, configured rather than compiled in.
+ *
+ * Anthropic watermarks Claude output from 2026-08-14 (arXiv 2301.10226), but
+ * only they can detect it and the API shape is not published yet. Pointing
+ * WATERMARK_DETECT_URL at it is all this should ever need.
+ */
+function detectors(): WatermarkDetector[] {
+  const url = process.env.WATERMARK_DETECT_URL;
+  if (!url) return [];
+  return [
+    createHttpWatermarkDetector({
+      url,
+      vendor: process.env.WATERMARK_VENDOR ?? "anthropic",
+      apiKey: process.env.WATERMARK_API_KEY,
+      minChars: Number(process.env.WATERMARK_MIN_CHARS ?? 400),
+    }),
+  ];
+}
+
+/**
  * Per-user auto-route policy. Not yet editable in the UI, so it reads from the
  * environment and otherwise stays at the strict default — off, empty
  * allowlist, proof required.
@@ -184,9 +214,11 @@ async function loadPolicy(_userId: string): Promise<AutoRoutePolicy> {
     .split(",")
     .map((c) => c.trim())
     .filter(Boolean);
+  const minVerdict = (process.env.TTMC_AUTOROUTE_MIN_VERDICT ??
+    "agent-verified") as AutoRoutePolicy["minVerdict"];
   return {
     enabled: process.env.TTMC_AUTOROUTE === "1" && channels.length > 0,
-    minVerdict: "agent-verified",
+    minVerdict,
     allowChannels: channels,
     neverAutoAnswer: (process.env.TTMC_AUTOROUTE_NEVER ?? "")
       .split(",")
